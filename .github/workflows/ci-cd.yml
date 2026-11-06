@@ -29,7 +29,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: actions/setup-dotnet@v4
         with:
@@ -100,7 +100,7 @@ jobs:
       MODAPI_TEST_PROVIDER: SqlServer
       MODAPI_TEST_CONNECTION: Server=localhost,1433;Database=modapi;User Id=sa;Password=ModApiCi_Passw0rd2024;TrustServerCertificate=True;Encrypt=False
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-dotnet@v4
         with:
           global-json-file: global.json
@@ -129,7 +129,7 @@ jobs:
       MODAPI_TEST_PROVIDER: PostgreSql
       MODAPI_TEST_CONNECTION: Host=localhost;Port=5432;Database=modapi;Username=postgres;Password=postgres
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-dotnet@v4
         with:
           global-json-file: global.json
@@ -148,7 +148,7 @@ jobs:
     outputs:
       image: ${{ steps.image.outputs.ref }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: docker/setup-buildx-action@v3
 

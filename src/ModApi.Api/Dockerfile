@@ -14,7 +14,7 @@ RUN dotnet restore src/ModApi.Api/ModApi.Api.csproj
 COPY src/ src/
 RUN dotnet publish src/ModApi.Api/ModApi.Api.csproj -c Release -o /app/publish --no-restore /p:UseAppHost=false
 
-FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
 
 # TLS is handled by the ingress, the app itself listens on plain http

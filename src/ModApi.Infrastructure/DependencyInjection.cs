@@ -10,21 +10,12 @@ using ModApi.Infrastructure.Persistence.Interceptors;
 
 namespace ModApi.Infrastructure;
 
-/// <summary>Registers infrastructure services (EF Core, providers, repositories, health checks).</summary>
 public static class DependencyInjection
 {
-    /// <summary>Health-check tag used for readiness probes.</summary>
     public const string ReadinessTag = "ready";
 
-    /// <summary>
-    /// Registers EF Core with the provider selected from configuration, the generic repository and unit of work.
-    /// Requires <c>AddApplication</c> (for <c>IEntityRegistry</c>).
-    /// </summary>
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
-        ArgumentNullException.ThrowIfNull(services);
-        ArgumentNullException.ThrowIfNull(configuration);
-
         services.AddOptions<DatabaseOptions>()
             .Bind(configuration.GetSection(DatabaseOptions.SectionName))
             .ValidateDataAnnotations()
@@ -49,33 +40,30 @@ public static class DependencyInjection
         return services;
     }
 
-    /// <summary>Runs the configured database initialization strategy in its own DI scope.</summary>
     public static async Task InitializeDatabaseAsync(this IServiceProvider services, CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(services);
-
         await using var scope = services.CreateAsyncScope();
         await scope.ServiceProvider.GetRequiredService<IDatabaseInitializer>().InitializeAsync(cancellationToken);
     }
 
-    private static void ConfigureDbContext(IServiceProvider serviceProvider, DbContextOptionsBuilder builder)
+    private static void ConfigureDbContext(IServiceProvider services, DbContextOptionsBuilder builder)
     {
-        var options = serviceProvider.GetRequiredService<IOptions<DatabaseOptions>>().Value;
-        var configuration = serviceProvider.GetRequiredService<IConfiguration>();
+        var options = services.GetRequiredService<IOptions<DatabaseOptions>>().Value;
+        var configuration = services.GetRequiredService<IConfiguration>();
 
         var connectionString = configuration.GetConnectionString(options.ConnectionStringName);
         if (string.IsNullOrWhiteSpace(connectionString))
         {
             throw new InvalidOperationException(
                 $"Connection string 'ConnectionStrings:{options.ConnectionStringName}' is not configured. " +
-                $"Set it in appsettings, user secrets or the 'ConnectionStrings__{options.ConnectionStringName}' environment variable.");
+                $"Set it in appsettings, user secrets or the ConnectionStrings__{options.ConnectionStringName} environment variable.");
         }
 
-        serviceProvider.GetRequiredService<IDatabaseProviderResolver>()
+        services.GetRequiredService<IDatabaseProviderResolver>()
             .Resolve(options.Provider, connectionString)
             .Configure(builder, connectionString, options);
 
-        builder.AddInterceptors(serviceProvider.GetRequiredService<AuditingInterceptor>());
+        builder.AddInterceptors(services.GetRequiredService<AuditingInterceptor>());
 
         if (options.EnableSensitiveDataLogging)
         {

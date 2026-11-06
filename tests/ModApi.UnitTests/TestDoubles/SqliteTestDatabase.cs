@@ -6,10 +6,6 @@ using ModApi.Infrastructure.Persistence.Interceptors;
 
 namespace ModApi.UnitTests.TestDoubles;
 
-/// <summary>
-/// An isolated in-memory SQLite database. SQLite is a real relational engine, so constraints and
-/// LINQ translation behave like production providers (unlike the EF in-memory provider).
-/// </summary>
 public sealed class SqliteTestDatabase : IDisposable
 {
     public static readonly DateTimeOffset StartTime = new(2025, 1, 15, 10, 30, 0, TimeSpan.Zero);

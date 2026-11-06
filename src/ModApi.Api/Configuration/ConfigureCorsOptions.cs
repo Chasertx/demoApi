@@ -3,37 +3,27 @@ using Microsoft.Extensions.Options;
 
 namespace ModApi.Api.Configuration;
 
-/// <summary>Builds the default CORS policy from <see cref="CorsSettings"/>.</summary>
-public sealed class ConfigureCorsOptions : IConfigureOptions<CorsOptions>
+public sealed class ConfigureCorsOptions(IOptions<CorsSettings> settings) : IConfigureOptions<CorsOptions>
 {
-    private readonly CorsSettings _settings;
-
-    public ConfigureCorsOptions(IOptions<CorsSettings> settings)
-    {
-        _settings = settings?.Value ?? throw new ArgumentNullException(nameof(settings));
-    }
-
-    /// <inheritdoc />
     public void Configure(CorsOptions options)
     {
-        ArgumentNullException.ThrowIfNull(options);
-
-        var origins = _settings.AllowedOrigins
-            .Where(origin => !string.IsNullOrWhiteSpace(origin))
-            .Select(origin => origin.Trim().TrimEnd('/'))
+        var cors = settings.Value;
+        var origins = cors.AllowedOrigins
+            .Where(o => !string.IsNullOrWhiteSpace(o))
+            .Select(o => o.Trim().TrimEnd('/'))
             .ToArray();
-        var allowAny = origins.Contains("*");
 
         options.AddDefaultPolicy(policy =>
         {
-            if (allowAny)
+            if (origins.Contains("*"))
             {
                 policy.AllowAnyOrigin();
             }
             else
             {
                 policy.WithOrigins(origins);
-                if (_settings.AllowCredentials)
+
+                if (cors.AllowCredentials)
                 {
                     policy.AllowCredentials();
                 }

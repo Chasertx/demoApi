@@ -6,8 +6,7 @@ using ModApi.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Composition root. Every assembly listed here is scanned for IEntity<TKey> implementations;
-// each one becomes part of the EF Core model and gets a full set of CRUD endpoints.
+// Every IEntity<TKey> in these assemblies gets a table and a set of CRUD endpoints.
 var entityRegistry = new EntityRegistry([typeof(Product).Assembly]);
 
 builder.Services
@@ -21,7 +20,6 @@ app.UsePresentation();
 await app.Services.InitializeDatabaseAsync();
 await app.RunAsync();
 
-/// <summary>Entry point; declared partial and public so integration tests can reference it.</summary>
 public partial class Program
 {
 }

@@ -97,11 +97,4 @@ public class EntityMetadataProviderTests
     {
         Assert.Equal(expected, EntityMetadataProvider.DescribeType(type));
     }
-
-    [Fact]
-    public void Constructor_and_find_validate_arguments()
-    {
-        Assert.Throws<ArgumentNullException>(() => new EntityMetadataProvider(null!));
-        Assert.Throws<ArgumentNullException>(() => _provider.Find(null!));
-    }
 }

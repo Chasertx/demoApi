@@ -1,11 +1,11 @@
-# ModApi
+﻿# ModApi
 
 [![CI/CD](https://github.com/OWNER/REPO/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/OWNER/REPO/actions/workflows/ci-cd.yml)
 
 A generic **.NET 8 REST API** that gives every entity full **CRUD** endpoints over **SQL Server** or **PostgreSQL** with no per-entity code. The provider is chosen from configuration. Data access uses **Entity Framework Core** and **LINQ** throughout. The API is designed to sit behind any number of independent, **modular frontends**.
 
 ```text
-Add a class  ─►  it becomes a table  ─►  it gets GET / POST / PUT / PATCH / DELETE + paging, sorting, search, filters
+Add a class  â”€â–º  it becomes a table  â”€â–º  it gets GET / POST / PUT / PATCH / DELETE + paging, sorting, search, filters
 ```
 
 ---
@@ -44,7 +44,7 @@ Add a class  ─►  it becomes a table  ─►  it gets GET / POST / PUT / PATC
 | **Frontend-ready** | Configurable CORS, an OpenAPI document for typed client generation, and a **metadata endpoint** that describes every entity so UIs can build tables and forms dynamically. |
 | **Production-ready** | JWT bearer auth (optional), per-IP rate limiting, liveness and readiness health checks, forwarded headers, HSTS, retry-on-failure, a non-root Docker image. |
 | **Swagger** | An interactive Swagger UI at `/swagger` with XML documentation. |
-| **Quality** | 360+ unit tests and an integration suite that runs against SQLite, SQL Server and PostgreSQL in CI. |
+| **Quality** | A unit test suite and an integration suite that runs against SQLite, SQL Server and PostgreSQL in CI. |
 
 ---
 
@@ -111,14 +111,14 @@ The solution follows **Clean Architecture**. Dependencies point inward only, and
 ```mermaid
 flowchart LR
     subgraph Presentation
-        API[ModApi.Api<br/>controllers · conventions · Swagger · security]
+        API[ModApi.Api<br/>controllers Â· conventions Â· Swagger Â· security]
     end
     subgraph Core
-        APP[ModApi.Application<br/>use cases · ports · query engine]
-        DOM[ModApi.Domain<br/>entities · IEntity · attributes]
+        APP[ModApi.Application<br/>use cases Â· ports Â· query engine]
+        DOM[ModApi.Domain<br/>entities Â· IEntity Â· attributes]
     end
     subgraph Adapters
-        INF[ModApi.Infrastructure<br/>EF Core · providers · repositories]
+        INF[ModApi.Infrastructure<br/>EF Core Â· providers Â· repositories]
     end
     API --> APP
     API --> INF
@@ -129,25 +129,25 @@ flowchart LR
 
 | Project | Responsibility | Depends on |
 |---|---|---|
-| `ModApi.Domain` | Entities, `IEntity<TKey>`, `IAuditable`, `EntityBase<TKey>`, `[CrudResource]`. No framework dependencies. | – |
+| `ModApi.Domain` | Entities, `IEntity<TKey>`, `IAuditable`, `EntityBase<TKey>`, `[CrudResource]`. No framework dependencies. | â€“ |
 | `ModApi.Application` | Ports (`IRepository`, `IUnitOfWork`, `ICrudService`, `IEntityMapper`), the generic `CrudService`, entity discovery (`EntityRegistry`), the LINQ query engine, metadata, application exceptions. **No EF Core dependency.** | Domain |
 | `ModApi.Infrastructure` | `AppDbContext`, provider strategies, `Repository<,>`, `UnitOfWork`, the auditing interceptor, the database initializer, health checks. | Application |
 | `ModApi.Api` | Generic `CrudController<,>`, controller generation, problem details, Swagger, CORS, rate limiting, authentication, the middleware pipeline. | Application, Infrastructure |
 
 ```text
 ModApi.sln
-├── src/
-│   ├── ModApi.Domain/            Common/ (IEntity, EntityBase, IAuditable, CrudResourceAttribute)  Entities/ (samples)
-│   ├── ModApi.Application/       Abstractions/  Entities/  Querying/  Mapping/  Reflection/  Services/  Exceptions/
-│   ├── ModApi.Infrastructure/    Database/ (provider strategies)  Persistence/ (DbContext, repository, interceptors, configurations)
-│   └── ModApi.Api/               Controllers/  Conventions/  ErrorHandling/  Configuration/  Program.cs  Dockerfile
-├── tests/
-│   ├── ModApi.UnitTests/         Application/  Infrastructure/  Api/  TestDoubles/
-│   └── ModApi.IntegrationTests/  WebApplicationFactory-based end-to-end tests
-├── .github/workflows/ci-cd.yml   build → test (SQLite, SQL Server, PostgreSQL) → image → deploy
-├── docker-compose.yml
-├── Directory.Build.props         shared compiler settings (nullable, warnings as errors)
-└── Directory.Packages.props      central package versions
+â”œâ”€â”€ src/
+â”‚   â”œâ”€â”€ ModApi.Domain/            Common/ (IEntity, EntityBase, IAuditable, CrudResourceAttribute)  Entities/ (samples)
+â”‚   â”œâ”€â”€ ModApi.Application/       Abstractions/  Entities/  Querying/  Mapping/  Reflection/  Services/  Exceptions/
+â”‚   â”œâ”€â”€ ModApi.Infrastructure/    Database/ (provider strategies)  Persistence/ (DbContext, repository, interceptors, configurations)
+â”‚   â””â”€â”€ ModApi.Api/               Controllers/  Conventions/  ErrorHandling/  Configuration/  Program.cs  Dockerfile
+â”œâ”€â”€ tests/
+â”‚   â”œâ”€â”€ ModApi.UnitTests/         Application/  Infrastructure/  Api/  TestDoubles/
+â”‚   â””â”€â”€ ModApi.IntegrationTests/  WebApplicationFactory-based end-to-end tests
+â”œâ”€â”€ .github/workflows/ci-cd.yml   build â†’ test (SQLite, SQL Server, PostgreSQL) â†’ image â†’ deploy
+â”œâ”€â”€ docker-compose.yml
+â”œâ”€â”€ Directory.Build.props         shared compiler settings (nullable, warnings as errors)
+â””â”€â”€ Directory.Packages.props      central package versions
 ```
 
 ---
@@ -185,13 +185,13 @@ sequenceDiagram
     participant EF as EF Core + provider
     C->>MW: GET /api/products?price:lt=50&sort=-name&page=2
     MW->>Ctl: routed request
-    Ctl->>Ctl: FilterParser → FilterCriterion[]
+    Ctl->>Ctl: FilterParser â†’ FilterCriterion[]
     Ctl->>Svc: GetPagedAsync(QueryParameters)
-    Svc->>Q: build predicate + sort (validated eagerly → 400 on bad input)
+    Svc->>Q: build predicate + sort (validated eagerly â†’ 400 on bad input)
     Svc->>Repo: CountAsync(q => q.Where(pred))
     Svc->>Repo: ListAsync(q => q.Where(pred).OrderBy(...).Skip().Take())
     Repo->>EF: AsNoTracking() + composed IQueryable
-    EF-->>Repo: parameterised SQL → rows
+    EF-->>Repo: parameterised SQL â†’ rows
     Repo-->>Svc: entities
     Svc-->>Ctl: PagedResult<Product>
     Ctl-->>C: 200 OK (JSON)
@@ -287,7 +287,7 @@ Platform endpoints:
 | Parameter | Example | Notes |
 |---|---|---|
 | `page` | `page=2` | 1-based. Default `1`. |
-| `pageSize` | `pageSize=50` | 1–100. Default `25`. |
+| `pageSize` | `pageSize=50` | 1â€“100. Default `25`. |
 | `sort` | `sort=name,-createdAtUtc` | Comma-separated; `-` means descending. `Id` is always the final tie-breaker. |
 | `search` | `search=wireless` | Case-insensitive match on any string property. |
 | `{property}` | `status=Active` | Equality (the default operator). |
@@ -325,11 +325,11 @@ Every setting can be supplied through `appsettings*.json`, environment variables
 
 | Key | Default | Description |
 |---|---|---|
-| `Provider` | *(empty → infer)* | `SqlServer` or `PostgreSql` (aliases accepted). |
+| `Provider` | *(empty â†’ infer)* | `SqlServer` or `PostgreSql` (aliases accepted). |
 | `ConnectionStringName` | `Default` | Which `ConnectionStrings` entry to use. |
 | `InitializationStrategy` | `None` | `None`, `EnsureCreated` (dev/test) or `Migrate`. |
-| `MigrationsAssembly` | – | Assembly that holds the provider-specific migrations. |
-| `CommandTimeoutSeconds` | `30` | 1–3600. |
+| `MigrationsAssembly` | â€“ | Assembly that holds the provider-specific migrations. |
+| `CommandTimeoutSeconds` | `30` | 1â€“3600. |
 | `EnableRetryOnFailure` / `MaxRetryCount` / `MaxRetryDelaySeconds` | `true` / `5` / `30` | Transient-fault handling for cloud databases. |
 | `EnableSensitiveDataLogging` / `EnableDetailedErrors` | `false` | Development only. |
 
@@ -341,7 +341,7 @@ Every setting can be supplied through `appsettings*.json`, environment variables
 | `Cors` | `AllowCredentials` | `false` | Allow cookies or credentials from explicit origins. |
 | `RateLimiting` | `Enabled` / `PermitLimit` / `WindowSeconds` | `true` / `100` / `60` | Fixed window per client IP. |
 | `Authentication` | `Enabled` | `false` | Require a JWT on every endpoint except health checks. |
-| `Authentication` | `Authority` / `Audience` | – | OIDC issuer (Entra ID, Auth0, Keycloak, Cognito…) and API audience. |
+| `Authentication` | `Authority` / `Audience` | â€“ | OIDC issuer (Entra ID, Auth0, Keycloak, Cognitoâ€¦) and API audience. |
 | `Authentication` | `RequireHttpsMetadata` | `true` | Disable only for a local identity server. |
 | `Swagger` | `Enabled` | `false` (`true` in Development) | Serve `/swagger`. |
 | `Hosting` | `UseHttpsRedirection` | `true` (`false` in the container) | Disable when TLS terminates at the ingress. |
@@ -373,7 +373,7 @@ Restart the API. `api/suppliers` now has all six endpoints, it appears in Swagge
 
 ### Fine-tune the mapping
 
-Data annotations (`[Required]`, `[MaxLength]`, `[Range]`, `[EmailAddress]`…) drive both validation and the column definitions. For anything else, add an `IEntityTypeConfiguration<T>` next to the entity or in `ModApi.Infrastructure/Persistence/Configurations`. It is picked up automatically:
+Data annotations (`[Required]`, `[MaxLength]`, `[Range]`, `[EmailAddress]`â€¦) drive both validation and the column definitions. For anything else, add an `IEntityTypeConfiguration<T>` next to the entity or in `ModApi.Infrastructure/Persistence/Configurations`. It is picked up automatically:
 
 ```csharp
 public sealed class SupplierConfiguration : IEntityTypeConfiguration<Supplier>
@@ -491,7 +491,7 @@ The API makes no assumptions about the UI. Any number of independent frontends (
    }
    // const products = resource<Product>(API_URL, "products");  await products.list({ "price:lt": 50, sort: "-createdAtUtc" });
    ```
-5. **Authentication.** When `Authentication:Enabled` is `true`, frontends obtain a token from your identity provider (MSAL, Auth0 SPA SDK, oidc-client-ts…) and send `Authorization: Bearer <token>`. Swagger shows an **Authorize** button in this mode.
+5. **Authentication.** When `Authentication:Enabled` is `true`, frontends obtain a token from your identity provider (MSAL, Auth0 SPA SDK, oidc-client-tsâ€¦) and send `Authorization: Bearer <token>`. Swagger shows an **Authorize** button in this mode.
 
 ---
 
@@ -562,9 +562,9 @@ Each test class creates a uniquely named database and drops it afterwards. CI ru
 
 ```mermaid
 flowchart LR
-    A[build-and-test<br/>restore · format check · build -warnaserror<br/>unit + integration on SQLite · coverage] --> B[integration-sqlserver<br/>SQL Server 2022 service]
+    A[build-and-test<br/>restore Â· format check Â· build -warnaserror<br/>unit + integration on SQLite Â· coverage] --> B[integration-sqlserver<br/>SQL Server 2022 service]
     A --> C[integration-postgres<br/>PostgreSQL 16 service]
-    B --> D[container<br/>docker build · push to GHCR<br/>main & tags only]
+    B --> D[container<br/>docker build Â· push to GHCR<br/>main & tags only]
     C --> D
     D --> E[deploy<br/>Azure Container Apps via OIDC<br/>+ /health/ready smoke test]
 ```
@@ -572,7 +572,7 @@ flowchart LR
 | Trigger | What runs |
 |---|---|
 | Pull request to `main` | Build, all tests on three databases, and a Docker build without a push. |
-| Push to `main` | All of the above, then push `ghcr.io/<owner>/<repo>:sha-…` and `:main`, then deploy if configured. |
+| Push to `main` | All of the above, then push `ghcr.io/<owner>/<repo>:sha-â€¦` and `:main`, then deploy if configured. |
 | Tag `v1.2.3` | The same, with semver tags `1.2.3` and `1.2`. |
 
 Test results (`.trx`) and the coverage report are uploaded as artifacts, and a coverage summary is added to the run page.
@@ -601,7 +601,7 @@ flowchart TB
     FD -->|/api/*| ACA
 
     subgraph VNET[Virtual network]
-        ACA[Azure Container Apps<br/>ModApi containers · autoscale 1..N<br/>liveness /health/live · readiness /health/ready]
+        ACA[Azure Container Apps<br/>ModApi containers Â· autoscale 1..N<br/>liveness /health/live Â· readiness /health/ready]
         ACA -->|private endpoint| DB[(Azure SQL Database<br/>or Azure Database for PostgreSQL Flexible Server)]
     end
 
@@ -621,7 +621,7 @@ flowchart TB
 | **Configuration** | 12-factor: everything comes from environment variables or Key Vault. The same image runs in every environment. |
 | **Observability** | Structured logs, health endpoints, and problem-details `traceId`s that correlate with distributed traces. To export traces and metrics, add the `Azure.Monitor.OpenTelemetry.AspNetCore` package and call `builder.Services.AddOpenTelemetry().UseAzureMonitor()`. |
 | **Schema changes** | Migrations run from the pipeline (EF bundle) before the new image rolls out. Write migrations to be backward compatible (expand, then contract) for zero-downtime deploys. |
-| **Environments** | `dev` → `staging` → `production` as GitHub environments with approvals. Container Apps revisions allow blue/green deployment and instant rollback. |
+| **Environments** | `dev` â†’ `staging` â†’ `production` as GitHub environments with approvals. Container Apps revisions allow blue/green deployment and instant rollback. |
 
 **Other clouds**
 
@@ -676,7 +676,7 @@ Registrations use `TryAdd*`, so a host can override any of them by registering i
 
 ## Extending the platform
 
-**Add a database engine** (MySQL, Oracle, SQLite…):
+**Add a database engine** (MySQL, Oracle, SQLiteâ€¦):
 
 ```csharp
 public sealed class MySqlProviderConfigurator : IDatabaseProviderConfigurator

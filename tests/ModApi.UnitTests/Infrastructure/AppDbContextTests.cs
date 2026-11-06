@@ -79,12 +79,4 @@ public class AppDbContextTests
 
         Assert.Equal((typeof(DbContext), false), new EntityRegistryModelCacheKeyFactory().Create(context, false));
     }
-
-    [Fact]
-    public void Constructor_requires_a_registry()
-    {
-        var options = new DbContextOptionsBuilder<AppDbContext>().UseSqlite("DataSource=:memory:").Options;
-
-        Assert.Throws<ArgumentNullException>(() => new AppDbContext(options, null!));
-    }
 }

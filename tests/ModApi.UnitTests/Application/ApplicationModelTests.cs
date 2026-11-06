@@ -47,7 +47,6 @@ public class ApplicationModelTests
         var exception = new RequestValidationException("Name", "required", "too long");
 
         Assert.Equal(["required", "too long"], exception.Errors["name"]);
-        Assert.Throws<ArgumentNullException>(() => new RequestValidationException((IReadOnlyDictionary<string, string[]>)null!));
     }
 
     [Fact]
@@ -85,12 +84,5 @@ public class ApplicationModelTests
 
         using var provider = services.BuildServiceProvider();
         Assert.Same(customMapper, provider.GetRequiredService<IEntityMapper>());
-    }
-
-    [Fact]
-    public void AddApplication_validates_arguments()
-    {
-        Assert.Throws<ArgumentNullException>(() => ((IServiceCollection)null!).AddApplication(new EntityRegistry([typeof(Widget)])));
-        Assert.Throws<ArgumentNullException>(() => new ServiceCollection().AddApplication((IEntityRegistry)null!));
     }
 }

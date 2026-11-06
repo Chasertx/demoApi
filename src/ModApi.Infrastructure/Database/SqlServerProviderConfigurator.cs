@@ -2,33 +2,27 @@ using Microsoft.EntityFrameworkCore;
 
 namespace ModApi.Infrastructure.Database;
 
-/// <summary>Configures EF Core for Microsoft SQL Server / Azure SQL.</summary>
 public sealed class SqlServerProviderConfigurator : IDatabaseProviderConfigurator
 {
     private static readonly string[] Aliases = ["SqlServer", "MsSql", "Sql Server", "AzureSql"];
-    private static readonly string[] IndicativeKeys = ["server", "data source", "initial catalog", "integrated security", "trusted_connection", "address", "addr"];
-    private static readonly string[] ForeignKeys = ["host", "port", "username"];
+    private static readonly string[] SqlServerKeys = ["server", "data source", "initial catalog", "integrated security", "trusted_connection", "address", "addr"];
 
-    /// <inheritdoc />
+    // Npgsql also accepts "Server", so back off if anything Postgres-only shows up.
+    private static readonly string[] PostgresKeys = ["host", "port", "username"];
+
     public string Name => "SqlServer";
 
-    /// <inheritdoc />
     public bool Matches(string providerName) =>
-        !string.IsNullOrWhiteSpace(providerName) && Aliases.Contains(providerName.Trim(), StringComparer.OrdinalIgnoreCase);
+        Aliases.Contains(providerName.Trim(), StringComparer.OrdinalIgnoreCase);
 
-    /// <inheritdoc />
     public bool CanHandle(string connectionString)
     {
         var keys = ConnectionStringKeys.Parse(connectionString);
-        return IndicativeKeys.Any(keys.Contains) && !ForeignKeys.Any(keys.Contains);
+        return SqlServerKeys.Any(keys.Contains) && !PostgresKeys.Any(keys.Contains);
     }
 
-    /// <inheritdoc />
     public void Configure(DbContextOptionsBuilder builder, string connectionString, DatabaseOptions options)
     {
-        ArgumentNullException.ThrowIfNull(builder);
-        ArgumentNullException.ThrowIfNull(options);
-
         builder.UseSqlServer(connectionString, sql =>
         {
             sql.CommandTimeout(options.CommandTimeoutSeconds);

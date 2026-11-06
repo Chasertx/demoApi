@@ -2,27 +2,29 @@ using System.Data.Common;
 
 namespace ModApi.Infrastructure.Database;
 
-/// <summary>Extracts the keys of an ADO.NET connection string.</summary>
 public static class ConnectionStringKeys
 {
-    /// <summary>Returns the lower-cased keys, or an empty set when the string cannot be parsed.</summary>
     public static IReadOnlySet<string> Parse(string? connectionString)
     {
+        var keys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         if (string.IsNullOrWhiteSpace(connectionString))
         {
-            return new HashSet<string>();
+            return keys;
         }
 
         try
         {
             var builder = new DbConnectionStringBuilder { ConnectionString = connectionString };
-            return builder.Keys.Cast<string>()
-                .Select(key => key.Trim().ToLowerInvariant())
-                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            foreach (string key in builder.Keys)
+            {
+                keys.Add(key.Trim());
+            }
         }
         catch (ArgumentException)
         {
-            return new HashSet<string>();
+            // not a valid connection string; treat it as having no keys
         }
+
+        return keys;
     }
 }

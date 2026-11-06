@@ -5,7 +5,6 @@ using ModApi.IntegrationTests.Infrastructure;
 
 namespace ModApi.IntegrationTests;
 
-/// <summary>Swagger, health checks, metadata discovery and CORS.</summary>
 public sealed class PlatformEndpointTests(ModApiFactory factory) : IClassFixture<ModApiFactory>
 {
     private readonly HttpClient _client = factory.CreateClient();

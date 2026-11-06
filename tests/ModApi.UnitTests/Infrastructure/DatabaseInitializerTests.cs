@@ -70,15 +70,4 @@ public sealed class DatabaseInitializerTests : IDisposable
         await Assert.ThrowsAsync<InvalidOperationException>(
             () => CreateInitializer((DatabaseInitializationStrategy)99).InitializeAsync());
     }
-
-    [Fact]
-    public void Constructor_validates_arguments()
-    {
-        var options = Options.Create(new DatabaseOptions());
-        var logger = NullLogger<DatabaseInitializer>.Instance;
-
-        Assert.Throws<ArgumentNullException>(() => new DatabaseInitializer(null!, options, logger));
-        Assert.Throws<ArgumentNullException>(() => new DatabaseInitializer(_context, null!, logger));
-        Assert.Throws<ArgumentNullException>(() => new DatabaseInitializer(_context, options, null!));
-    }
 }

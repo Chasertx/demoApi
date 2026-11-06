@@ -1,7 +1,5 @@
 namespace ModApi.IntegrationTests.Infrastructure;
 
-// Client-side contracts, deliberately independent of the server's domain types (like a real frontend).
-
 public sealed record PagedResponse<T>(List<T> Items, int Page, int PageSize, int TotalCount, int TotalPages, bool HasPreviousPage, bool HasNextPage);
 
 public sealed record CategoryDto(int Id, string Name, string? Description, DateTime CreatedAtUtc, DateTime? UpdatedAtUtc);

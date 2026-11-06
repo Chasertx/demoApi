@@ -2,7 +2,6 @@
 
   <PropertyGroup>
     <RootNamespace>ModApi.Infrastructure</RootNamespace>
-    <GenerateDocumentationFile>true</GenerateDocumentationFile>
   </PropertyGroup>
 
   <ItemGroup>

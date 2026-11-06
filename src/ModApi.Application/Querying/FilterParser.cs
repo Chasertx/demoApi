@@ -2,10 +2,7 @@ using ModApi.Application.Exceptions;
 
 namespace ModApi.Application.Querying;
 
-/// <summary>
-/// Parses query-string pairs of the form <c>property=value</c> or <c>property:operator=value</c>
-/// into <see cref="FilterCriterion"/> instances.
-/// </summary>
+// Turns "name=x" and "price:gte=10" style query string pairs into filter criteria.
 public static class FilterParser
 {
     private static readonly Dictionary<string, FilterOperator> Operators = new(StringComparer.OrdinalIgnoreCase)
@@ -21,23 +18,18 @@ public static class FilterParser
         ["endswith"] = FilterOperator.EndsWith,
     };
 
-    /// <summary>The operator tokens accepted after the colon.</summary>
     public static IReadOnlyCollection<string> SupportedOperators => Operators.Keys;
 
-    /// <summary>Parses the given key/value pairs.</summary>
-    /// <exception cref="RequestValidationException">A key is malformed or uses an unknown operator.</exception>
     public static IReadOnlyList<FilterCriterion> Parse(IEnumerable<KeyValuePair<string, string>> pairs)
     {
-        ArgumentNullException.ThrowIfNull(pairs);
-
         var errors = new ValidationErrorCollector();
         var result = new List<FilterCriterion>();
 
         foreach (var (key, value) in pairs)
         {
-            var separator = key.IndexOf(':', StringComparison.Ordinal);
+            var separator = key.IndexOf(':');
             var property = (separator < 0 ? key : key[..separator]).Trim();
-            var operatorToken = separator < 0 ? "eq" : key[(separator + 1)..].Trim();
+            var token = separator < 0 ? "eq" : key[(separator + 1)..].Trim();
 
             if (property.Length == 0)
             {
@@ -45,9 +37,9 @@ public static class FilterParser
                 continue;
             }
 
-            if (!Operators.TryGetValue(operatorToken, out var op))
+            if (!Operators.TryGetValue(token, out var op))
             {
-                errors.Add(key, $"Unknown filter operator '{operatorToken}'. Supported operators: {string.Join(", ", Operators.Keys)}.");
+                errors.Add(key, $"Unknown filter operator '{token}'. Supported operators: {string.Join(", ", Operators.Keys)}.");
                 continue;
             }
 

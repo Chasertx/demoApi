@@ -12,7 +12,7 @@ public class DatabaseProviderResolverTests
     [InlineData("postgres", "PostgreSql")]
     public void Explicit_provider_names_win(string providerName, string expected)
     {
-        // The connection string looks like the *other* provider, proving the explicit name takes precedence.
+        // connection string deliberately looks like the other provider
         var connectionString = expected == "SqlServer" ? "Host=db;Database=x" : "Server=db;Database=x";
 
         Assert.Equal(expected, _resolver.Resolve(providerName, connectionString).Name);
@@ -75,12 +75,6 @@ public class DatabaseProviderResolverTests
         var resolver = new DatabaseProviderResolver([new SqlServerProviderConfigurator(), custom]);
 
         Assert.Same(custom, resolver.Resolve("fake", "anything"));
-    }
-
-    [Fact]
-    public void Constructor_validates_arguments()
-    {
-        Assert.Throws<ArgumentNullException>(() => new DatabaseProviderResolver(null!));
     }
 
     private sealed class FakeProvider : IDatabaseProviderConfigurator

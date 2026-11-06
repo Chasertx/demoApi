@@ -25,7 +25,7 @@ public class CrudServiceTests
     {
         _service = new CrudService<Widget, int>(_repository, _unitOfWork, _mapper);
 
-        // Execute the composed LINQ query against an in-memory list, as the real repository does against SQL.
+        // run the query shapes against a list instead of a database
         _repository.CountAsync(Arg.Any<Func<IQueryable<Widget>, IQueryable<Widget>>?>(), Arg.Any<CancellationToken>())
             .Returns(call => Shape(call.Arg<Func<IQueryable<Widget>, IQueryable<Widget>>?>()).Count());
         _repository.ListAsync(Arg.Any<Func<IQueryable<Widget>, IQueryable<Widget>>?>(), Arg.Any<CancellationToken>())
@@ -36,14 +36,6 @@ public class CrudServiceTests
 
     private IQueryable<Widget> Shape(Func<IQueryable<Widget>, IQueryable<Widget>>? query) =>
         query is null ? _store.AsQueryable() : query(_store.AsQueryable());
-
-    [Fact]
-    public void Constructor_validates_dependencies()
-    {
-        Assert.Throws<ArgumentNullException>(() => new CrudService<Widget, int>(null!, _unitOfWork, _mapper));
-        Assert.Throws<ArgumentNullException>(() => new CrudService<Widget, int>(_repository, null!, _mapper));
-        Assert.Throws<ArgumentNullException>(() => new CrudService<Widget, int>(_repository, _unitOfWork, null!));
-    }
 
     [Fact]
     public async Task GetPaged_returns_the_requested_page_and_totals()
@@ -112,12 +104,6 @@ public class CrudServiceTests
     }
 
     [Fact]
-    public async Task GetPaged_rejects_null_parameters()
-    {
-        await Assert.ThrowsAsync<ArgumentNullException>(() => _service.GetPagedAsync(null!));
-    }
-
-    [Fact]
     public async Task GetById_returns_the_entity()
     {
         var widget = await _service.GetByIdAsync(2);
@@ -174,12 +160,6 @@ public class CrudServiceTests
     }
 
     [Fact]
-    public async Task Create_rejects_null()
-    {
-        await Assert.ThrowsAsync<ArgumentNullException>(() => _service.CreateAsync(null!));
-    }
-
-    [Fact]
     public async Task Update_copies_values_onto_the_tracked_entity_and_saves()
     {
         var incoming = new Widget { Name = "Renamed" };
@@ -216,12 +196,6 @@ public class CrudServiceTests
     }
 
     [Fact]
-    public async Task Update_rejects_null()
-    {
-        await Assert.ThrowsAsync<ArgumentNullException>(() => _service.UpdateAsync(1, null!));
-    }
-
-    [Fact]
     public async Task Patch_applies_the_patch_and_saves()
     {
         var patch = new Dictionary<string, JsonElement> { ["name"] = JsonDocument.Parse("\"Patched\"").RootElement };
@@ -244,10 +218,9 @@ public class CrudServiceTests
     }
 
     [Fact]
-    public async Task Patch_throws_not_found_and_rejects_null()
+    public async Task Patch_throws_not_found()
     {
         await Assert.ThrowsAsync<NotFoundException>(() => _service.PatchAsync(404, new Dictionary<string, JsonElement>()));
-        await Assert.ThrowsAsync<ArgumentNullException>(() => _service.PatchAsync(1, null!));
     }
 
     [Fact]

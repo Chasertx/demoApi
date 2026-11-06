@@ -29,10 +29,4 @@ public class MetadataControllerTests
         Assert.Same(widget, Assert.IsType<OkObjectResult>(controller.GetEntity("widgets").Result).Value);
         Assert.IsType<NotFoundResult>(controller.GetEntity("missing").Result);
     }
-
-    [Fact]
-    public void Constructor_validates_arguments()
-    {
-        Assert.Throws<ArgumentNullException>(() => new MetadataController(null!));
-    }
 }

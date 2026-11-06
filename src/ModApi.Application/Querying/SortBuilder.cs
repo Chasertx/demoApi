@@ -5,18 +5,11 @@ using ModApi.Application.Reflection;
 
 namespace ModApi.Application.Querying;
 
-/// <summary>A single sort instruction.</summary>
-/// <param name="Property">The property to order by.</param>
-/// <param name="Descending">Whether to sort in descending order.</param>
 public sealed record SortDescriptor(PropertyInfo Property, bool Descending);
 
-/// <summary>Parses sort expressions and applies ordering and paging to <see cref="IQueryable{T}"/>.</summary>
 public static class SortBuilder
 {
-    /// <summary>
-    /// Parses <c>"name,-price"</c> style sort expressions. A leading <c>-</c> means descending.
-    /// </summary>
-    /// <exception cref="RequestValidationException">A named property is unknown or not sortable.</exception>
+    // "name,-price" -> name ascending, then price descending
     public static IReadOnlyList<SortDescriptor> Parse<TEntity>(string? sort)
     {
         var result = new List<SortDescriptor>();
@@ -30,7 +23,6 @@ public static class SortBuilder
 
         foreach (var token in sort.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
         {
-            var descending = token.StartsWith('-');
             var name = token.TrimStart('-', '+');
 
             if (!properties.TryGetQueryable(name, out var property))
@@ -39,9 +31,9 @@ public static class SortBuilder
                 continue;
             }
 
-            if (result.All(existing => existing.Property != property))
+            if (result.All(s => s.Property != property))
             {
-                result.Add(new SortDescriptor(property, descending));
+                result.Add(new SortDescriptor(property, token.StartsWith('-')));
             }
         }
 
@@ -49,15 +41,11 @@ public static class SortBuilder
         return result;
     }
 
-    /// <summary>
-    /// Applies the given ordering. <c>Id</c> is always appended as a final tie-breaker so paging is deterministic.
-    /// </summary>
     public static IQueryable<TEntity> ApplySort<TEntity>(this IQueryable<TEntity> query, IReadOnlyList<SortDescriptor> sorts)
     {
-        ArgumentNullException.ThrowIfNull(query);
-        ArgumentNullException.ThrowIfNull(sorts);
-
         var effective = sorts.ToList();
+
+        // Always finish with Id so paging is stable.
         if (EntityProperties.For(typeof(TEntity)).TryGetQueryable("Id", out var id) && effective.All(s => s.Property != id))
         {
             effective.Add(new SortDescriptor(id, Descending: false));
@@ -66,21 +54,18 @@ public static class SortBuilder
         var expression = query.Expression;
         for (var i = 0; i < effective.Count; i++)
         {
-            var sort = effective[i];
-            var methodName = (i == 0, sort.Descending) switch
-            {
-                (true, false) => nameof(Queryable.OrderBy),
-                (true, true) => nameof(Queryable.OrderByDescending),
-                (false, false) => nameof(Queryable.ThenBy),
-                (false, true) => nameof(Queryable.ThenByDescending),
-            };
+            var (property, descending) = effective[i];
+            var method = i == 0
+                ? descending ? nameof(Queryable.OrderByDescending) : nameof(Queryable.OrderBy)
+                : descending ? nameof(Queryable.ThenByDescending) : nameof(Queryable.ThenBy);
 
             var parameter = Expression.Parameter(typeof(TEntity), "e");
-            var keySelector = Expression.Lambda(Expression.Property(parameter, sort.Property), parameter);
+            var keySelector = Expression.Lambda(Expression.Property(parameter, property), parameter);
+
             expression = Expression.Call(
                 typeof(Queryable),
-                methodName,
-                [typeof(TEntity), sort.Property.PropertyType],
+                method,
+                [typeof(TEntity), property.PropertyType],
                 expression,
                 Expression.Quote(keySelector));
         }
@@ -88,12 +73,11 @@ public static class SortBuilder
         return query.Provider.CreateQuery<TEntity>(expression);
     }
 
-    /// <summary>Applies 1-based paging.</summary>
     public static IQueryable<TEntity> ApplyPaging<TEntity>(this IQueryable<TEntity> query, int page, int pageSize)
     {
-        ArgumentNullException.ThrowIfNull(query);
         ArgumentOutOfRangeException.ThrowIfLessThan(page, 1);
         ArgumentOutOfRangeException.ThrowIfLessThan(pageSize, 1);
+
         return query.Skip((page - 1) * pageSize).Take(pageSize);
     }
 }

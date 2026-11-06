@@ -11,14 +11,6 @@ using ModApi.Infrastructure.Persistence;
 
 namespace ModApi.IntegrationTests.Infrastructure;
 
-/// <summary>
-/// Boots the real application in memory against an isolated database.
-/// <para>
-/// By default each factory gets its own SQLite file. Set <c>MODAPI_TEST_PROVIDER</c> (<c>SqlServer</c> or
-/// <c>PostgreSql</c>) and <c>MODAPI_TEST_CONNECTION</c> to run the same suite against a real server; a uniquely
-/// named database is created per factory and dropped afterwards.
-/// </para>
-/// </summary>
 public sealed class ModApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
 {
     public static readonly JsonSerializerOptions Json = CreateJsonOptions();
@@ -56,7 +48,7 @@ public sealed class ModApiFactory : WebApplicationFactory<Program>, IAsyncLifeti
     {
         builder.UseEnvironment("Testing");
 
-        // UseSetting values are visible while Program.cs is still registering services.
+        // UseSetting so the values are already there while Program.cs is registering services
         builder.UseSetting("ConnectionStrings:Default", _connectionString);
         builder.UseSetting("Database:Provider", _provider);
         builder.UseSetting("Database:InitializationStrategy", nameof(DatabaseInitializationStrategy.EnsureCreated));
@@ -72,7 +64,7 @@ public sealed class ModApiFactory : WebApplicationFactory<Program>, IAsyncLifeti
 
     public Task InitializeAsync()
     {
-        // Force the host (and therefore the database) to be created up front.
+        // start the host now so the database is created before the first test
         _ = Server;
         return Task.CompletedTask;
     }
@@ -98,7 +90,6 @@ public sealed class ModApiFactory : WebApplicationFactory<Program>, IAsyncLifeti
     }
 }
 
-/// <summary>Typed JSON helpers for tests.</summary>
 public static class HttpContentExtensions
 {
     public static async Task<T> ReadAsAsync<T>(this HttpResponseMessage response)

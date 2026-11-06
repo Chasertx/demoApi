@@ -6,14 +6,11 @@ using ModApi.Domain.Common;
 
 namespace ModApi.Api.Controllers;
 
-/// <summary>
-/// Generic REST controller. A closed instance (e.g. <c>CrudController&lt;Product, int&gt;</c>) is generated for every
-/// exposed entity by <see cref="Conventions.CrudControllerFeatureProvider"/> and routed at <c>api/{route}</c>
-/// by <see cref="Conventions.CrudControllerRouteConvention"/>. Subclass it to customise one entity.
-/// </summary>
+// One closed instance of this is registered per entity (see CrudControllerFeatureProvider).
+// Subclass it if an entity needs extra endpoints; the generic one is then skipped for that entity.
 [ApiController]
 [Route("api/[controller]")]
-public class CrudController<TEntity, TKey> : ControllerBase
+public class CrudController<TEntity, TKey>(ICrudService<TEntity, TKey> service) : ControllerBase
     where TEntity : class, IEntity<TKey>
     where TKey : notnull
 {
@@ -22,32 +19,19 @@ public class CrudController<TEntity, TKey> : ControllerBase
         "page", "pageSize", "sort", "search",
     };
 
-    public CrudController(ICrudService<TEntity, TKey> service)
-    {
-        Service = service ?? throw new ArgumentNullException(nameof(service));
-    }
+    protected ICrudService<TEntity, TKey> Service { get; } = service;
 
-    /// <summary>The CRUD service for this entity.</summary>
-    protected ICrudService<TEntity, TKey> Service { get; }
-
-    /// <summary>Lists records with paging, sorting, free-text search and property filters.</summary>
+    /// <summary>Lists records with paging, sorting, search and filters.</summary>
     /// <remarks>
-    /// Any query parameter that is not <c>page</c>, <c>pageSize</c>, <c>sort</c> or <c>search</c> is treated as a filter:
-    ///
-    ///     ?name=Laptop                 equals (default operator)
-    ///     ?price:gte=10&amp;price:lt=100   range
-    ///     ?name:contains=lap           case-insensitive contains (also startswith, endswith)
-    ///     ?categoryId=null             null check (eq / ne only)
-    ///     ?sort=name,-createdAtUtc     ascending name, then newest first
-    ///     ?search=lap                  matches any text property
-    ///
+    /// Any other query parameter is a filter, e.g. <c>name=Laptop</c>, <c>price:gte=10</c>,
+    /// <c>name:contains=lap</c> or <c>categoryId=null</c>.
     /// Operators: eq, ne, gt, gte, lt, lte, contains, startswith, endswith.
     /// </remarks>
-    /// <param name="page">1-based page number.</param>
+    /// <param name="page">Page number, starting at 1.</param>
     /// <param name="pageSize">Items per page (1-100).</param>
-    /// <param name="sort">Comma-separated property names; prefix with '-' for descending.</param>
-    /// <param name="search">Case-insensitive text matched against every string property.</param>
-    /// <param name="cancellationToken">Request cancellation.</param>
+    /// <param name="sort">Comma separated properties, prefix with '-' for descending.</param>
+    /// <param name="search">Text to look for in any string property.</param>
+    /// <param name="cancellationToken"></param>
     [HttpGet]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
@@ -58,35 +42,25 @@ public class CrudController<TEntity, TKey> : ControllerBase
         [FromQuery] string? search = null,
         CancellationToken cancellationToken = default)
     {
-        var filters = FilterParser.Parse(
-            Request.Query
-                .Where(pair => !ReservedQueryKeys.Contains(pair.Key))
-                .Select(pair => KeyValuePair.Create(pair.Key, pair.Value.ToString())));
+        var filters = FilterParser.Parse(Request.Query
+            .Where(q => !ReservedQueryKeys.Contains(q.Key))
+            .Select(q => KeyValuePair.Create(q.Key, q.Value.ToString())));
 
-        var parameters = new QueryParameters
-        {
-            Page = page,
-            PageSize = pageSize,
-            Sort = sort,
-            Search = search,
-            Filters = filters,
-        };
+        var result = await Service.GetPagedAsync(
+            new QueryParameters { Page = page, PageSize = pageSize, Sort = sort, Search = search, Filters = filters },
+            cancellationToken);
 
-        return Ok(await Service.GetPagedAsync(parameters, cancellationToken));
+        return Ok(result);
     }
 
-    /// <summary>Gets a single record by id.</summary>
-    /// <param name="id">The record id.</param>
-    /// <param name="cancellationToken">Request cancellation.</param>
+    /// <summary>Gets a record by id.</summary>
     [HttpGet("{id}")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     public virtual async Task<ActionResult<TEntity>> GetById(TKey id, CancellationToken cancellationToken = default) =>
         Ok(await Service.GetByIdAsync(id, cancellationToken));
 
-    /// <summary>Creates a record. Generated ids and audit fields are assigned by the server.</summary>
-    /// <param name="entity">The record to create.</param>
-    /// <param name="cancellationToken">Request cancellation.</param>
+    /// <summary>Creates a record. Ids and audit fields are set by the server.</summary>
     [HttpPost]
     [Consumes("application/json")]
     [ProducesResponseType(StatusCodes.Status201Created)]
@@ -95,14 +69,13 @@ public class CrudController<TEntity, TKey> : ControllerBase
     public virtual async Task<ActionResult<TEntity>> Create([FromBody] TEntity entity, CancellationToken cancellationToken = default)
     {
         var created = await Service.CreateAsync(entity, cancellationToken);
-        var basePath = Request.Path.HasValue ? Request.Path.Value!.TrimEnd('/') : string.Empty;
-        return Created($"{basePath}/{Uri.EscapeDataString(created.Id.ToString() ?? string.Empty)}", created);
+        var path = Request.Path.Value?.TrimEnd('/') ?? string.Empty;
+        var id = Uri.EscapeDataString(created.Id.ToString() ?? string.Empty);
+
+        return Created($"{path}/{id}", created);
     }
 
-    /// <summary>Replaces every writable property of a record.</summary>
-    /// <param name="id">The record id.</param>
-    /// <param name="entity">The full replacement. Its id must be omitted or match the URL.</param>
-    /// <param name="cancellationToken">Request cancellation.</param>
+    /// <summary>Replaces a record.</summary>
     [HttpPut("{id}")]
     [Consumes("application/json")]
     [ProducesResponseType(StatusCodes.Status200OK)]
@@ -112,11 +85,7 @@ public class CrudController<TEntity, TKey> : ControllerBase
     public virtual async Task<ActionResult<TEntity>> Update(TKey id, [FromBody] TEntity entity, CancellationToken cancellationToken = default) =>
         Ok(await Service.UpdateAsync(id, entity, cancellationToken));
 
-    /// <summary>Changes only the supplied properties (JSON merge patch).</summary>
-    /// <remarks>Example body: <c>{ "price": 9.99, "description": null }</c></remarks>
-    /// <param name="id">The record id.</param>
-    /// <param name="patch">Property names and new values.</param>
-    /// <param name="cancellationToken">Request cancellation.</param>
+    /// <summary>Updates only the fields in the body, e.g. <c>{ "price": 9.99 }</c>.</summary>
     [HttpPatch("{id}")]
     [Consumes("application/json", "application/merge-patch+json")]
     [ProducesResponseType(StatusCodes.Status200OK)]
@@ -130,8 +99,6 @@ public class CrudController<TEntity, TKey> : ControllerBase
         Ok(await Service.PatchAsync(id, patch, cancellationToken));
 
     /// <summary>Deletes a record.</summary>
-    /// <param name="id">The record id.</param>
-    /// <param name="cancellationToken">Request cancellation.</param>
     [HttpDelete("{id}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]

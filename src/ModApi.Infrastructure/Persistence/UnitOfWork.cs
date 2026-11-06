@@ -4,35 +4,21 @@ using ModApi.Application.Exceptions;
 
 namespace ModApi.Infrastructure.Persistence;
 
-/// <summary>
-/// Commits the scoped <see cref="AppDbContext"/> and translates provider-specific EF Core exceptions into
-/// provider-agnostic application exceptions, so the API layer never depends on EF Core.
-/// </summary>
-public sealed class UnitOfWork : IUnitOfWork
+public sealed class UnitOfWork(AppDbContext context) : IUnitOfWork
 {
-    private readonly AppDbContext _context;
-
-    public UnitOfWork(AppDbContext context)
-    {
-        _context = context ?? throw new ArgumentNullException(nameof(context));
-    }
-
-    /// <inheritdoc />
     public async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
         try
         {
-            return await _context.SaveChangesAsync(cancellationToken);
+            return await context.SaveChangesAsync(cancellationToken);
         }
-        catch (DbUpdateConcurrencyException exception)
+        catch (DbUpdateConcurrencyException ex)
         {
-            throw new ConflictException("The record was modified or deleted by another process. Reload it and try again.", exception);
+            throw new ConflictException("The record was changed or deleted by someone else. Reload it and try again.", ex);
         }
-        catch (DbUpdateException exception)
+        catch (DbUpdateException ex)
         {
-            throw new ConflictException(
-                "The change conflicts with existing data (for example a duplicate unique value or a missing related record).",
-                exception);
+            throw new ConflictException("The change conflicts with existing data, e.g. a duplicate unique value or a missing related record.", ex);
         }
     }
 }

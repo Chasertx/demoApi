@@ -23,9 +23,7 @@ env:
   IMAGE_NAME: ghcr.io/${{ github.repository }}
 
 jobs:
-  # ---------------------------------------------------------------------------
-  # 1. Build, lint, unit tests + integration tests on SQLite, coverage report
-  # ---------------------------------------------------------------------------
+  # unit + integration tests on SQLite
   build-and-test:
     name: Build & test
     runs-on: ubuntu-latest
@@ -78,9 +76,7 @@ jobs:
             coverage/
           retention-days: 14
 
-  # ---------------------------------------------------------------------------
-  # 2. Same integration suite against real database engines
-  # ---------------------------------------------------------------------------
+  # same integration tests against real databases
   integration-sqlserver:
     name: Integration (SQL Server)
     needs: build-and-test
@@ -140,9 +136,7 @@ jobs:
       - name: Integration tests
         run: dotnet test tests/ModApi.IntegrationTests -c $CONFIGURATION --logger "console;verbosity=normal"
 
-  # ---------------------------------------------------------------------------
-  # 3. Container image: always built; pushed to GHCR only for main and tags
-  # ---------------------------------------------------------------------------
+  # image is pushed for main and tags only
   container:
     name: Container image
     needs: [build-and-test, integration-sqlserver, integration-postgres]
@@ -193,11 +187,7 @@ jobs:
         id: image
         run: echo "ref=$(echo '${{ steps.meta.outputs.tags }}' | grep ':sha-' | head -n 1)" >> "$GITHUB_OUTPUT"
 
-  # ---------------------------------------------------------------------------
-  # 4. Deploy (runs only once the Azure variables below are configured)
-  #    Repository variables: AZURE_CONTAINERAPP_NAME, AZURE_RESOURCE_GROUP, APP_BASE_URL
-  #    Repository secrets:   AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID (OIDC federated credential)
-  # ---------------------------------------------------------------------------
+  # skipped until AZURE_CONTAINERAPP_NAME is set (see README > CI/CD pipeline)
   deploy:
     name: Deploy to Azure Container Apps
     needs: container
@@ -211,7 +201,7 @@ jobs:
       contents: read
       id-token: write
     steps:
-      - name: Azure login (OIDC, no stored passwords)
+      - name: Azure login
         uses: azure/login@v2
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}

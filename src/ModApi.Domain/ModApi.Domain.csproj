@@ -2,7 +2,6 @@
 
   <PropertyGroup>
     <RootNamespace>ModApi.Domain</RootNamespace>
-    <GenerateDocumentationFile>true</GenerateDocumentationFile>
   </PropertyGroup>
 
 </Project>

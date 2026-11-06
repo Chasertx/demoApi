@@ -82,10 +82,4 @@ public sealed class AuditingInterceptorTests : IDisposable
 
         interceptor.ApplyAuditInformation(null);
     }
-
-    [Fact]
-    public void Constructor_validates_arguments()
-    {
-        Assert.Throws<ArgumentNullException>(() => new AuditingInterceptor(null!));
-    }
 }

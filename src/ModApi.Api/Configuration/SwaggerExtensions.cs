@@ -2,20 +2,12 @@ using Microsoft.OpenApi.Models;
 
 namespace ModApi.Api.Configuration;
 
-/// <summary>Swagger / OpenAPI registration.</summary>
 public static class SwaggerExtensions
 {
-    /// <summary>The OpenAPI document name.</summary>
     public const string DocumentName = "v1";
 
-    private static readonly string[] XmlDocumentationFiles = ["ModApi.Api.xml", "ModApi.Application.xml", "ModApi.Domain.xml"];
-
-    /// <summary>Registers the OpenAPI generator, including XML comments and (when enabled) a bearer-token button.</summary>
     public static IServiceCollection AddSwaggerDocumentation(this IServiceCollection services, AuthenticationSettings authentication)
     {
-        ArgumentNullException.ThrowIfNull(services);
-        ArgumentNullException.ThrowIfNull(authentication);
-
         services.AddEndpointsApiExplorer();
         services.AddSwaggerGen(options =>
         {
@@ -23,27 +15,23 @@ public static class SwaggerExtensions
             {
                 Title = "ModApi",
                 Version = DocumentName,
-                Description = "Generic CRUD API over SQL Server or PostgreSQL. Every entity gets list, get, create, " +
-                              "replace, patch and delete endpoints. Use GET /api/metadata/entities to discover resources.",
+                Description = "CRUD API over SQL Server or PostgreSQL. GET /api/metadata/entities lists the available resources.",
             });
 
-            foreach (var file in XmlDocumentationFiles)
+            var xmlDocs = Path.Combine(AppContext.BaseDirectory, "ModApi.Api.xml");
+            if (File.Exists(xmlDocs))
             {
-                var path = Path.Combine(AppContext.BaseDirectory, file);
-                if (File.Exists(path))
-                {
-                    options.IncludeXmlComments(path, includeControllerXmlComments: true);
-                }
+                options.IncludeXmlComments(xmlDocs);
             }
 
             options.SupportNonNullableReferenceTypes();
 
             if (authentication.Enabled)
             {
-                var scheme = new OpenApiSecurityScheme
+                var bearer = new OpenApiSecurityScheme
                 {
                     Name = "Authorization",
-                    Description = "Paste a JWT access token (without the 'Bearer ' prefix).",
+                    Description = "JWT access token (without the 'Bearer ' prefix).",
                     In = ParameterLocation.Header,
                     Type = SecuritySchemeType.Http,
                     Scheme = "bearer",
@@ -51,8 +39,8 @@ public static class SwaggerExtensions
                     Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "Bearer" },
                 };
 
-                options.AddSecurityDefinition("Bearer", scheme);
-                options.AddSecurityRequirement(new OpenApiSecurityRequirement { [scheme] = [] });
+                options.AddSecurityDefinition("Bearer", bearer);
+                options.AddSecurityRequirement(new OpenApiSecurityRequirement { [bearer] = [] });
             }
         });
 

@@ -2,13 +2,9 @@ using System.Text;
 
 namespace ModApi.Application.Entities;
 
-/// <summary>Builds conventional REST route segments from CLR type names.</summary>
 public static class RouteNaming
 {
-    /// <summary>
-    /// Converts a PascalCase type name to a kebab-case, pluralized route segment.
-    /// <c>Product</c> → <c>products</c>, <c>OrderLine</c> → <c>order-lines</c>, <c>Category</c> → <c>categories</c>.
-    /// </summary>
+    // OrderLine -> order-lines, Category -> categories
     public static string ToRoute(string typeName)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(typeName);
@@ -23,19 +19,17 @@ public static class RouteNaming
         return string.Join('-', words).ToLowerInvariant();
     }
 
-    /// <summary>Applies simple English pluralization rules to a single word.</summary>
     public static string Pluralize(string word)
     {
-        ArgumentNullException.ThrowIfNull(word);
         if (word.Length == 0)
         {
             return word;
         }
 
         var lower = word.ToLowerInvariant();
-        if (lower.Length > 1 && lower[^1] == 'y' && !IsVowel(lower[^2]))
+        if (lower.Length > 1 && lower[^1] == 'y' && !"aeiou".Contains(lower[^2]))
         {
-            return string.Concat(word.AsSpan(0, word.Length - 1), "ies");
+            return word[..^1] + "ies";
         }
 
         if (lower.EndsWith('s') || lower.EndsWith('x') || lower.EndsWith('z') ||
@@ -46,8 +40,6 @@ public static class RouteNaming
 
         return word + "s";
     }
-
-    private static bool IsVowel(char c) => c is 'a' or 'e' or 'i' or 'o' or 'u';
 
     private static List<string> SplitWords(string name)
     {
@@ -76,7 +68,9 @@ public static class RouteNaming
             {
                 var previous = name[i - 1];
                 var nextIsLower = i + 1 < name.Length && char.IsLower(name[i + 1]);
-                if (char.IsLower(previous) || char.IsDigit(previous) || (char.IsUpper(previous) && nextIsLower))
+
+                // Break on "aB" and "1B", and on the last capital of an acronym ("HTTPRequest" -> HTTP, Request).
+                if (char.IsLower(previous) || char.IsDigit(previous) || nextIsLower)
                 {
                     Flush();
                 }

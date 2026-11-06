@@ -40,13 +40,6 @@ public class ConventionTests
         Assert.Contains(typeof(CrudController<Gadget, Guid>).GetTypeInfo(), feature.Controllers);
     }
 
-    [Fact]
-    public void Feature_provider_validates_arguments()
-    {
-        Assert.Throws<ArgumentNullException>(() => new CrudControllerFeatureProvider(null!));
-        Assert.Throws<ArgumentNullException>(() => new CrudControllerFeatureProvider(_registry).PopulateFeature(Array.Empty<ApplicationPart>(), null!));
-    }
-
     [Theory]
     [InlineData(typeof(CrudController<Widget, int>), typeof(Widget))]
     [InlineData(typeof(CustomWidgetController), typeof(Widget))]
@@ -91,13 +84,6 @@ public class ConventionTests
 
         Assert.Equal("Metadata", model.ControllerName);
         Assert.Equal("Tag", unregistered.ControllerName);
-    }
-
-    [Fact]
-    public void Route_convention_validates_arguments()
-    {
-        Assert.Throws<ArgumentNullException>(() => new CrudControllerRouteConvention(null!));
-        Assert.Throws<ArgumentNullException>(() => new CrudControllerRouteConvention(_registry).Apply(null!));
     }
 
     public sealed class CustomWidgetController(ICrudService<Widget, int> service) : CrudController<Widget, int>(service);

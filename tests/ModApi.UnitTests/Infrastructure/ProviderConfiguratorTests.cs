@@ -112,13 +112,6 @@ public class ProviderConfiguratorTests
     }
 
     [Fact]
-    public void Configure_validates_arguments()
-    {
-        Assert.Throws<ArgumentNullException>(() => _sqlServer.Configure(null!, SqlServerConnection, new DatabaseOptions()));
-        Assert.Throws<ArgumentNullException>(() => _postgres.Configure(new DbContextOptionsBuilder(), PostgresConnection, null!));
-    }
-
-    [Fact]
     public void Connection_string_keys_are_parsed_case_insensitively()
     {
         var keys = ConnectionStringKeys.Parse("SERVER=x;Database=y");

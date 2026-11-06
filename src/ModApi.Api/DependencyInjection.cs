@@ -13,27 +13,21 @@ using InfrastructureRegistration = ModApi.Infrastructure.DependencyInjection;
 
 namespace ModApi.Api;
 
-/// <summary>Registers and wires the presentation (HTTP) layer.</summary>
 public static class DependencyInjection
 {
-    /// <summary>Registers controllers (including generated CRUD controllers), Swagger, CORS, rate limiting, security and error handling.</summary>
     public static IServiceCollection AddPresentation(this IServiceCollection services, IConfiguration configuration, IEntityRegistry entityRegistry)
     {
-        ArgumentNullException.ThrowIfNull(services);
-        ArgumentNullException.ThrowIfNull(configuration);
-        ArgumentNullException.ThrowIfNull(entityRegistry);
-
         services.AddOptions<CorsSettings>().Bind(configuration.GetSection(CorsSettings.SectionName));
+        services.AddOptions<SwaggerSettings>().Bind(configuration.GetSection(SwaggerSettings.SectionName));
+        services.AddOptions<HostingSettings>().Bind(configuration.GetSection(HostingSettings.SectionName));
         services.AddOptions<RateLimitingSettings>()
             .Bind(configuration.GetSection(RateLimitingSettings.SectionName))
             .ValidateDataAnnotations()
             .ValidateOnStart();
-        services.AddOptions<SwaggerSettings>().Bind(configuration.GetSection(SwaggerSettings.SectionName));
-        services.AddOptions<HostingSettings>().Bind(configuration.GetSection(HostingSettings.SectionName));
 
         services
             .AddControllers(options => options.Conventions.Add(new CrudControllerRouteConvention(entityRegistry)))
-            .ConfigureApplicationPartManager(manager => manager.FeatureProviders.Add(new CrudControllerFeatureProvider(entityRegistry)))
+            .ConfigureApplicationPartManager(parts => parts.FeatureProviders.Add(new CrudControllerFeatureProvider(entityRegistry)))
             .AddJsonOptions(options =>
             {
                 options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
@@ -49,12 +43,11 @@ public static class DependencyInjection
         services.AddRateLimiter(_ => { });
         services.AddSingleton<IConfigureOptions<RateLimiterOptions>, ConfigureRateLimiterOptions>();
 
-        var authentication = configuration.GetSection(AuthenticationSettings.SectionName).Get<AuthenticationSettings>() ?? new AuthenticationSettings();
+        var authentication = configuration.GetSection(AuthenticationSettings.SectionName).Get<AuthenticationSettings>() ?? new();
         services.AddApiSecurity(authentication);
         services.AddSwaggerDocumentation(authentication);
 
-        // Behind a reverse proxy / cloud ingress, honour X-Forwarded-For and X-Forwarded-Proto.
-        // The container is only reachable through the ingress, so the proxy's address is not pinned.
+        // The container is only reachable through the ingress, so we trust whatever proxy forwards to us.
         services.Configure<ForwardedHeadersOptions>(options =>
         {
             options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
@@ -65,11 +58,8 @@ public static class DependencyInjection
         return services;
     }
 
-    /// <summary>Builds the HTTP middleware pipeline and maps endpoints.</summary>
     public static WebApplication UsePresentation(this WebApplication app)
     {
-        ArgumentNullException.ThrowIfNull(app);
-
         var hosting = app.Services.GetRequiredService<IOptions<HostingSettings>>().Value;
         var swagger = app.Services.GetRequiredService<IOptions<SwaggerSettings>>().Value;
 
@@ -93,10 +83,11 @@ public static class DependencyInjection
             app.UseSwaggerUI(options =>
             {
                 options.SwaggerEndpoint($"/swagger/{SwaggerExtensions.DocumentName}/swagger.json", "ModApi v1");
-                options.DocumentTitle = "ModApi – Swagger";
+                options.DocumentTitle = "ModApi";
                 options.DisplayRequestDuration();
                 options.EnableTryItOutByDefault();
             });
+
             app.MapGet("/", () => Results.Redirect("/swagger")).ExcludeFromDescription().AllowAnonymous();
         }
 
@@ -107,12 +98,12 @@ public static class DependencyInjection
 
         app.MapControllers();
 
-        // Liveness: the process is up. Readiness: dependencies (database) are reachable.
         app.MapHealthChecks("/health/live", new HealthCheckOptions
         {
             Predicate = _ => false,
             ResponseWriter = HealthCheckResponseWriter.WriteAsync,
         }).AllowAnonymous();
+
         app.MapHealthChecks("/health/ready", new HealthCheckOptions
         {
             Predicate = check => check.Tags.Contains(InfrastructureRegistration.ReadinessTag),

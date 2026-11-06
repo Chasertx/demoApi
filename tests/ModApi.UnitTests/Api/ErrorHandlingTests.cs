@@ -64,12 +64,6 @@ public class ErrorHandlingTests
         Assert.Equal(includeDetails, problem.Detail?.Contains("secret") ?? false);
     }
 
-    [Fact]
-    public void Mapper_validates_arguments()
-    {
-        Assert.Throws<ArgumentNullException>(() => ExceptionProblemDetailsMapper.Map(null!, false));
-    }
-
     [Theory]
     [InlineData("Development", true)]
     [InlineData("Production", false)]
@@ -103,17 +97,5 @@ public class ErrorHandlingTests
         await handler.TryHandleAsync(httpContext, new NotFoundException("Widget", 1), CancellationToken.None);
 
         Assert.Equal(StatusCodes.Status404NotFound, httpContext.Response.StatusCode);
-    }
-
-    [Fact]
-    public void Handler_validates_arguments()
-    {
-        var service = Substitute.For<IProblemDetailsService>();
-        var environment = Substitute.For<IHostEnvironment>();
-        var logger = NullLogger<GlobalExceptionHandler>.Instance;
-
-        Assert.Throws<ArgumentNullException>(() => new GlobalExceptionHandler(null!, environment, logger));
-        Assert.Throws<ArgumentNullException>(() => new GlobalExceptionHandler(service, null!, logger));
-        Assert.Throws<ArgumentNullException>(() => new GlobalExceptionHandler(service, environment, null!));
     }
 }

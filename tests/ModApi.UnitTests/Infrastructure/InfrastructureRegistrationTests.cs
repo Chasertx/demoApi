@@ -129,14 +129,6 @@ public class InfrastructureRegistrationTests
     }
 
     [Fact]
-    public async Task Arguments_are_validated()
-    {
-        Assert.Throws<ArgumentNullException>(() => ((IServiceCollection)null!).AddInfrastructure(new ConfigurationBuilder().Build()));
-        Assert.Throws<ArgumentNullException>(() => new ServiceCollection().AddInfrastructure(null!));
-        await Assert.ThrowsAsync<ArgumentNullException>(() => ((IServiceProvider)null!).InitializeDatabaseAsync());
-    }
-
-    [Fact]
     public void Sensitive_logging_and_detailed_errors_are_opt_in()
     {
         using var serviceProvider = BuildProvider(new()

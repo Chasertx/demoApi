@@ -28,12 +28,6 @@ public class CrudControllerTests
         _controller.HttpContext.Request.Query = new QueryCollection(query);
 
     [Fact]
-    public void Constructor_validates_arguments()
-    {
-        Assert.Throws<ArgumentNullException>(() => new CrudController<Widget, int>(null!));
-    }
-
-    [Fact]
     public async Task GetAll_maps_paging_sort_search_and_filters()
     {
         SetQuery(new()

@@ -5,64 +5,17 @@ using ModApi.Application.Reflection;
 
 namespace ModApi.Application.Entities;
 
-/// <summary>Builds <see cref="EntityMetadata"/> from the registry once and caches it.</summary>
-public sealed class EntityMetadataProvider : IEntityMetadataProvider
+public sealed class EntityMetadataProvider(IEntityRegistry registry) : IEntityMetadataProvider
 {
-    private readonly Lazy<IReadOnlyList<EntityMetadata>> _metadata;
+    private readonly Lazy<List<EntityMetadata>> _metadata = new(() => Build(registry));
 
-    public EntityMetadataProvider(IEntityRegistry registry)
-    {
-        ArgumentNullException.ThrowIfNull(registry);
-        _metadata = new Lazy<IReadOnlyList<EntityMetadata>>(() => Build(registry));
-    }
-
-    /// <inheritdoc />
     public IReadOnlyList<EntityMetadata> GetAll() => _metadata.Value;
 
-    /// <inheritdoc />
-    public EntityMetadata? Find(string route)
-    {
-        ArgumentNullException.ThrowIfNull(route);
-        return _metadata.Value.FirstOrDefault(m => string.Equals(m.Route, route.Trim('/'), StringComparison.OrdinalIgnoreCase));
-    }
+    public EntityMetadata? Find(string route) =>
+        _metadata.Value.FirstOrDefault(m => string.Equals(m.Route, route.Trim('/'), StringComparison.OrdinalIgnoreCase));
 
-    private static List<EntityMetadata> Build(IEntityRegistry registry) =>
-        registry.Entities
-            .Where(d => d.IsExposed)
-            .Select(d => new EntityMetadata(d.Name, d.Route, DescribeType(d.KeyType), DescribeProperties(d.EntityType)))
-            .ToList();
-
-    private static List<PropertyMetadata> DescribeProperties(Type entityType)
-    {
-        var properties = EntityProperties.For(entityType);
-        var mutable = properties.Mutable.ToHashSet();
-
-        return properties.Scalar
-            .OrderBy(p => p.Name == "Id" ? 0 : properties.IsSystemProperty(p) ? 2 : 1)
-            .Select(p =>
-            {
-                var isNullable = properties.IsNullable(p);
-                var isReadOnly = !mutable.Contains(p);
-                var isRequired = p.GetCustomAttribute<RequiredAttribute>() is not null
-                                 || (!isReadOnly && !isNullable && !p.PropertyType.IsValueType);
-                var underlying = Nullable.GetUnderlyingType(p.PropertyType) ?? p.PropertyType;
-
-                return new PropertyMetadata(
-                    JsonNamingPolicy.CamelCase.ConvertName(p.Name),
-                    DescribeType(p.PropertyType),
-                    isNullable,
-                    isRequired,
-                    isReadOnly,
-                    p.GetCustomAttribute<MaxLengthAttribute>()?.Length ?? p.GetCustomAttribute<StringLengthAttribute>()?.MaximumLength,
-                    underlying.IsEnum ? Enum.GetNames(underlying) : null);
-            })
-            .ToList();
-    }
-
-    /// <summary>Maps a CLR type to a JSON-schema-like type name.</summary>
     public static string DescribeType(Type type)
     {
-        ArgumentNullException.ThrowIfNull(type);
         var t = Nullable.GetUnderlyingType(type) ?? type;
 
         if (t.IsEnum)
@@ -84,5 +37,41 @@ public sealed class EntityMetadataProvider : IEntityMetadataProvider
             _ when t == typeof(byte[]) => "binary",
             _ => "string",
         };
+    }
+
+    private static List<EntityMetadata> Build(IEntityRegistry registry) =>
+        registry.Entities
+            .Where(d => d.IsExposed)
+            .Select(d => new EntityMetadata(d.Name, d.Route, DescribeType(d.KeyType), DescribeProperties(d.EntityType)))
+            .ToList();
+
+    private static List<PropertyMetadata> DescribeProperties(Type entityType)
+    {
+        var properties = EntityProperties.For(entityType);
+        var mutable = properties.Mutable.ToHashSet();
+
+        // id first, audit columns last, everything else in declaration order
+        return properties.Scalar
+            .OrderBy(p => p.Name == "Id" ? 0 : properties.IsSystemProperty(p) ? 2 : 1)
+            .Select(p =>
+            {
+                var isNullable = properties.IsNullable(p);
+                var isReadOnly = !mutable.Contains(p);
+                var isRequired = p.GetCustomAttribute<RequiredAttribute>() is not null
+                    || (!isReadOnly && !isNullable && !p.PropertyType.IsValueType);
+                var underlying = Nullable.GetUnderlyingType(p.PropertyType) ?? p.PropertyType;
+                var maxLength = p.GetCustomAttribute<MaxLengthAttribute>()?.Length
+                    ?? p.GetCustomAttribute<StringLengthAttribute>()?.MaximumLength;
+
+                return new PropertyMetadata(
+                    JsonNamingPolicy.CamelCase.ConvertName(p.Name),
+                    DescribeType(p.PropertyType),
+                    isNullable,
+                    isRequired,
+                    isReadOnly,
+                    maxLength,
+                    underlying.IsEnum ? Enum.GetNames(underlying) : null);
+            })
+            .ToList();
     }
 }

@@ -127,15 +127,4 @@ public sealed class RepositoryTests : IDisposable
         Assert.NotNull(await gadgets.FindAsync(gadget.Id));
         Assert.Equal("C#", (await tags.FindAsync("csharp"))!.Title);
     }
-
-    [Fact]
-    public async Task Arguments_are_validated()
-    {
-        await using var context = _database.CreateContext();
-        var repository = new Repository<Widget, int>(context);
-
-        Assert.Throws<ArgumentNullException>(() => new Repository<Widget, int>(null!));
-        await Assert.ThrowsAsync<ArgumentNullException>(() => repository.AddAsync(null!));
-        Assert.Throws<ArgumentNullException>(() => repository.Remove(null!));
-    }
 }

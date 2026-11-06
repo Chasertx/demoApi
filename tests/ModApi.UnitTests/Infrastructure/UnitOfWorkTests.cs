@@ -49,10 +49,4 @@ public sealed class UnitOfWorkTests : IDisposable
 
         Assert.IsType<DbUpdateConcurrencyException>(exception.InnerException);
     }
-
-    [Fact]
-    public void Constructor_validates_arguments()
-    {
-        Assert.Throws<ArgumentNullException>(() => new UnitOfWork(null!));
-    }
 }

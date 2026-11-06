@@ -5,12 +5,6 @@ using ModApi.Application.Reflection;
 
 namespace ModApi.Application.Querying;
 
-/// <summary>
-/// Translates <see cref="FilterCriterion"/> instances and a free-text search term into a LINQ predicate.
-/// The resulting expression tree contains only operations every EF Core relational provider can translate
-/// (comparisons, <c>ToLower</c>, <c>Contains</c>, <c>StartsWith</c>, <c>EndsWith</c>), and every value is
-/// captured as a closure so EF Core sends it as a SQL parameter – never concatenated into SQL.
-/// </summary>
 public static class FilterExpressionBuilder
 {
     private static readonly MethodInfo ToLowerMethod = typeof(string).GetMethod(nameof(string.ToLower), Type.EmptyTypes)!;
@@ -25,12 +19,8 @@ public static class FilterExpressionBuilder
         typeof(DateTime), typeof(DateTimeOffset), typeof(DateOnly), typeof(TimeOnly), typeof(TimeSpan),
     ];
 
-    /// <summary>Builds a predicate, or returns <c>null</c> when there is nothing to filter.</summary>
-    /// <exception cref="RequestValidationException">Any filter or the search term is invalid; all problems are reported together.</exception>
     public static Expression<Func<TEntity, bool>>? Build<TEntity>(IEnumerable<FilterCriterion> filters, string? search)
     {
-        ArgumentNullException.ThrowIfNull(filters);
-
         var parameter = Expression.Parameter(typeof(TEntity), "e");
         var properties = EntityProperties.For(typeof(TEntity));
         var errors = new ValidationErrorCollector();
@@ -38,25 +28,20 @@ public static class FilterExpressionBuilder
 
         foreach (var filter in filters)
         {
-            var expression = BuildFilter(parameter, properties, filter, errors);
-            if (expression is not null)
-            {
-                body = body is null ? expression : Expression.AndAlso(body, expression);
-            }
+            body = And(body, BuildFilter(parameter, properties, filter, errors));
         }
 
         if (!string.IsNullOrWhiteSpace(search))
         {
-            var expression = BuildSearch(parameter, properties, search.Trim(), errors);
-            if (expression is not null)
-            {
-                body = body is null ? expression : Expression.AndAlso(body, expression);
-            }
+            body = And(body, BuildSearch(parameter, properties, search.Trim(), errors));
         }
 
         errors.ThrowIfAny();
         return body is null ? null : Expression.Lambda<Func<TEntity, bool>>(body, parameter);
     }
+
+    private static Expression? And(Expression? left, Expression? right) =>
+        left is null ? right : right is null ? left : Expression.AndAlso(left, right);
 
     private static Expression? BuildFilter(
         ParameterExpression parameter,
@@ -70,9 +55,10 @@ public static class FilterExpressionBuilder
             return null;
         }
 
-        if (!ValueParser.TryParse(filter.Value, property.PropertyType, out var value))
+        var propertyType = property.PropertyType;
+        if (!ValueParser.TryParse(filter.Value, propertyType, out var value))
         {
-            errors.Add(filter.Property, $"'{filter.Value}' is not a valid value for '{property.Name}' ({DescribeType(property.PropertyType)}).");
+            errors.Add(filter.Property, $"'{filter.Value}' is not a valid value for '{property.Name}' ({TypeName(propertyType)}).");
             return null;
         }
 
@@ -83,25 +69,26 @@ public static class FilterExpressionBuilder
         }
 
         var member = Expression.Property(parameter, property);
-        var underlying = Nullable.GetUnderlyingType(property.PropertyType) ?? property.PropertyType;
 
         switch (filter.Operator)
         {
             case FilterOperator.Equal:
-                return Expression.Equal(member, Parameterize(value, property.PropertyType));
+                return Expression.Equal(member, Parameter(value, propertyType));
+
             case FilterOperator.NotEqual:
-                return Expression.NotEqual(member, Parameterize(value, property.PropertyType));
+                return Expression.NotEqual(member, Parameter(value, propertyType));
+
             case FilterOperator.GreaterThan:
             case FilterOperator.GreaterThanOrEqual:
             case FilterOperator.LessThan:
             case FilterOperator.LessThanOrEqual:
-                if (!OrderableTypes.Contains(underlying))
+                if (!OrderableTypes.Contains(Nullable.GetUnderlyingType(propertyType) ?? propertyType))
                 {
-                    errors.Add(filter.Property, $"Range operators are not supported for '{property.Name}' ({DescribeType(property.PropertyType)}).");
+                    errors.Add(filter.Property, $"Range operators are not supported for '{property.Name}' ({TypeName(propertyType)}).");
                     return null;
                 }
 
-                var right = Parameterize(value, property.PropertyType);
+                var right = Parameter(value, propertyType);
                 return filter.Operator switch
                 {
                     FilterOperator.GreaterThan => Expression.GreaterThan(member, right),
@@ -109,12 +96,11 @@ public static class FilterExpressionBuilder
                     FilterOperator.LessThan => Expression.LessThan(member, right),
                     _ => Expression.LessThanOrEqual(member, right),
                 };
-            case FilterOperator.Contains:
-            case FilterOperator.StartsWith:
-            case FilterOperator.EndsWith:
-                if (property.PropertyType != typeof(string))
+
+            default:
+                if (propertyType != typeof(string))
                 {
-                    errors.Add(filter.Property, $"Text operators can only be used on string properties; '{property.Name}' is {DescribeType(property.PropertyType)}.");
+                    errors.Add(filter.Property, $"Text operators only work on strings; '{property.Name}' is {TypeName(propertyType)}.");
                     return null;
                 }
 
@@ -124,10 +110,7 @@ public static class FilterExpressionBuilder
                     FilterOperator.StartsWith => StartsWithMethod,
                     _ => EndsWithMethod,
                 };
-                return BuildTextMatch(member, method, ((string)value!).ToLowerInvariant());
-            default:
-                errors.Add(filter.Property, $"Operator '{filter.Operator}' is not supported.");
-                return null;
+                return TextMatch(member, method, ((string)value!).ToLowerInvariant());
         }
     }
 
@@ -145,33 +128,29 @@ public static class FilterExpressionBuilder
 
         var term = search.ToLowerInvariant();
         return properties.Text
-            .Select(p => BuildTextMatch(Expression.Property(parameter, p), ContainsMethod, term))
+            .Select(p => TextMatch(Expression.Property(parameter, p), ContainsMethod, term))
             .Aggregate(Expression.OrElse);
     }
 
-    /// <summary><c>member != null &amp;&amp; member.ToLower().Method(term)</c> – case-insensitive on every provider.</summary>
-    private static Expression BuildTextMatch(MemberExpression member, MethodInfo method, string loweredTerm)
+    // Lower-casing both sides keeps matching case-insensitive on Postgres too, where LIKE is case-sensitive.
+    private static Expression TextMatch(MemberExpression member, MethodInfo method, string term)
     {
         var notNull = Expression.NotEqual(member, Expression.Constant(null, typeof(string)));
-        var lowered = Expression.Call(member, ToLowerMethod);
-        var match = Expression.Call(lowered, method, Parameterize(loweredTerm, typeof(string)));
+        var match = Expression.Call(Expression.Call(member, ToLowerMethod), method, Parameter(term, typeof(string)));
         return Expression.AndAlso(notNull, match);
     }
 
-    /// <summary>Wraps a value in a closure-like holder so EF Core emits a SQL parameter instead of a literal.</summary>
-    private static MemberExpression Parameterize(object? value, Type type)
+    // EF Core turns a member access on a captured object into a SQL parameter; a plain constant would be inlined.
+    private static MemberExpression Parameter(object? value, Type type)
     {
-        var holder = Activator.CreateInstance(typeof(ValueHolder<>).MakeGenericType(type), value)!;
-        return Expression.Property(Expression.Constant(holder), nameof(ValueHolder<object>.Value));
+        var holder = Activator.CreateInstance(typeof(Box<>).MakeGenericType(type), value)!;
+        return Expression.Property(Expression.Constant(holder), nameof(Box<object>.Value));
     }
 
-    private static string DescribeType(Type type)
-    {
-        var underlying = Nullable.GetUnderlyingType(type);
-        return underlying is null ? type.Name : $"{underlying.Name}?";
-    }
+    private static string TypeName(Type type) =>
+        Nullable.GetUnderlyingType(type) is { } underlying ? $"{underlying.Name}?" : type.Name;
 
-    private sealed class ValueHolder<T>(T value)
+    private sealed class Box<T>(T value)
     {
         public T Value { get; } = value;
     }

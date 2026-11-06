@@ -6,15 +6,6 @@ using ModApi.Domain.Common;
 
 namespace ModApi.Application.Reflection;
 
-/// <summary>
-/// Classifies the public properties of an entity:
-/// <list type="bullet">
-/// <item><b>Scalar</b> – column-like values (navigations and collections are excluded).</item>
-/// <item><b>Queryable</b> – scalars that may be filtered and sorted.</item>
-/// <item><b>Mutable</b> – scalars a client may write (excludes <c>Id</c>, audit fields and <c>[ReadOnly(true)]</c>).</item>
-/// <item><b>Text</b> – string scalars used by free-text search.</item>
-/// </list>
-/// </summary>
 public sealed class EntityPropertySet
 {
     private static readonly HashSet<string> AuditPropertyNames =
@@ -31,6 +22,7 @@ public sealed class EntityPropertySet
         var nullability = new NullabilityInfoContext();
         var isAuditable = typeof(IAuditable).IsAssignableFrom(entityType);
 
+        // Only column-like properties; navigations, indexers and [NotMapped] are left out.
         Scalar = entityType
             .GetProperties(BindingFlags.Public | BindingFlags.Instance)
             .Where(p => p.GetIndexParameters().Length == 0
@@ -49,6 +41,7 @@ public sealed class EntityPropertySet
                         || (!p.PropertyType.IsValueType && nullability.Create(p).WriteState != NullabilityState.NotNull))
             .ToHashSet();
 
+        // Clients may never write keys, audit columns or anything marked [ReadOnly(true)].
         Mutable = Scalar
             .Where(p => p.SetMethod is { IsPublic: true }
                         && !_system.Contains(p)
@@ -63,29 +56,21 @@ public sealed class EntityPropertySet
         _mutable = Mutable.ToDictionary(p => p.Name, StringComparer.OrdinalIgnoreCase);
     }
 
-    /// <summary>The entity type described.</summary>
     public Type EntityType { get; }
 
-    /// <summary>Column-like properties.</summary>
     public IReadOnlyList<PropertyInfo> Scalar { get; }
 
-    /// <summary>Properties a client may write.</summary>
     public IReadOnlyList<PropertyInfo> Mutable { get; }
 
-    /// <summary>String properties used for free-text search.</summary>
     public IReadOnlyList<PropertyInfo> Text { get; }
 
-    /// <summary>Finds a filterable/sortable property by name (case-insensitive).</summary>
     public bool TryGetQueryable(string name, [NotNullWhen(true)] out PropertyInfo? property) =>
         _queryable.TryGetValue(name, out property);
 
-    /// <summary>Finds a client-writable property by name (case-insensitive).</summary>
     public bool TryGetMutable(string name, [NotNullWhen(true)] out PropertyInfo? property) =>
         _mutable.TryGetValue(name, out property);
 
-    /// <summary>Whether the property accepts <c>null</c> (nullable value type or nullable reference type).</summary>
     public bool IsNullable(PropertyInfo property) => _nullable.Contains(property);
 
-    /// <summary>Whether the property is managed by the server (<c>Id</c> or an audit field).</summary>
     public bool IsSystemProperty(PropertyInfo property) => _system.Contains(property);
 }

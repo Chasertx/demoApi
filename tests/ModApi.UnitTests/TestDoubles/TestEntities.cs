@@ -12,7 +12,6 @@ public enum WidgetColor
     Blue,
 }
 
-/// <summary>An int-keyed auditable entity exercising every supported scalar kind.</summary>
 public class Widget : EntityBase<int>
 {
     [Required]
@@ -43,7 +42,6 @@ public class Widget : EntityBase<int>
     public ICollection<Gadget> Gadgets { get; set; } = new List<Gadget>();
 }
 
-/// <summary>A Guid-keyed entity.</summary>
 public class Gadget : EntityBase<Guid>
 {
     [Required]
@@ -52,7 +50,6 @@ public class Gadget : EntityBase<Guid>
     public int? WidgetId { get; set; }
 }
 
-/// <summary>A string-keyed, non-auditable entity implementing <see cref="IEntity{TKey}"/> directly.</summary>
 public class Tag : IEntity<string>
 {
     public string Id { get; set; } = string.Empty;
@@ -60,7 +57,6 @@ public class Tag : IEntity<string>
     public string Title { get; set; } = string.Empty;
 }
 
-/// <summary>An entity with no text properties.</summary>
 public class Measurement : IEntity<long>
 {
     public long Id { get; set; }

@@ -3,18 +3,10 @@ using Microsoft.AspNetCore.Authorization;
 
 namespace ModApi.Api.Configuration;
 
-/// <summary>Authentication / authorization registration.</summary>
 public static class SecurityExtensions
 {
-    /// <summary>
-    /// Registers JWT bearer authentication with a "require authenticated user" fallback policy when enabled;
-    /// otherwise registers permissive defaults so the middleware pipeline is identical in both modes.
-    /// </summary>
     public static IServiceCollection AddApiSecurity(this IServiceCollection services, AuthenticationSettings settings)
     {
-        ArgumentNullException.ThrowIfNull(services);
-        ArgumentNullException.ThrowIfNull(settings);
-
         if (!settings.Enabled)
         {
             services.AddAuthentication();
@@ -24,7 +16,7 @@ public static class SecurityExtensions
 
         if (string.IsNullOrWhiteSpace(settings.Authority))
         {
-            throw new InvalidOperationException("Authentication is enabled but 'Authentication:Authority' is not configured.");
+            throw new InvalidOperationException("Authentication is enabled but 'Authentication:Authority' is not set.");
         }
 
         services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -36,6 +28,7 @@ public static class SecurityExtensions
                 options.MapInboundClaims = false;
             });
 
+        // Everything requires a signed-in user unless it opts out with [AllowAnonymous].
         services.AddAuthorizationBuilder()
             .SetFallbackPolicy(new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build());
 

@@ -1,5 +1,4 @@
 <Project>
-  <!-- Central Package Management: every package version lives here, projects only reference names. -->
   <PropertyGroup>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
     <EfCoreVersion>8.0.11</EfCoreVersion>

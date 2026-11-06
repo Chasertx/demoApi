@@ -4,7 +4,6 @@ using ModApi.IntegrationTests.Infrastructure;
 
 namespace ModApi.IntegrationTests;
 
-/// <summary>Seeds a known data set once and verifies paging, sorting, searching and filtering translate to SQL.</summary>
 public sealed class QueryEndpointTests : IClassFixture<QueryEndpointTests.SeededFactory>
 {
     private readonly HttpClient _client;

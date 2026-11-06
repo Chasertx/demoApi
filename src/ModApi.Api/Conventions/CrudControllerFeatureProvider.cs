@@ -6,24 +6,11 @@ using ModApi.Application.Entities;
 
 namespace ModApi.Api.Conventions;
 
-/// <summary>
-/// Adds a closed <see cref="CrudController{TEntity, TKey}"/> to MVC for every exposed entity that does not
-/// already have a hand-written controller deriving from <c>CrudController&lt;TEntity, TKey&gt;</c>.
-/// </summary>
-public sealed class CrudControllerFeatureProvider : IApplicationFeatureProvider<ControllerFeature>
+public sealed class CrudControllerFeatureProvider(IEntityRegistry registry) : IApplicationFeatureProvider<ControllerFeature>
 {
-    private readonly IEntityRegistry _registry;
-
-    public CrudControllerFeatureProvider(IEntityRegistry registry)
-    {
-        _registry = registry ?? throw new ArgumentNullException(nameof(registry));
-    }
-
-    /// <inheritdoc />
     public void PopulateFeature(IEnumerable<ApplicationPart> parts, ControllerFeature feature)
     {
-        ArgumentNullException.ThrowIfNull(feature);
-
+        // Entities that already have a hand-written CrudController subclass don't get a generic one.
         var handled = new HashSet<Type>();
         foreach (var controller in feature.Controllers)
         {
@@ -33,10 +20,10 @@ public sealed class CrudControllerFeatureProvider : IApplicationFeatureProvider<
             }
         }
 
-        foreach (var descriptor in _registry.Entities.Where(d => d.IsExposed && !handled.Contains(d.EntityType)))
+        foreach (var entity in registry.Entities.Where(e => e.IsExposed && !handled.Contains(e.EntityType)))
         {
-            feature.Controllers.Add(
-                typeof(CrudController<,>).MakeGenericType(descriptor.EntityType, descriptor.KeyType).GetTypeInfo());
+            var controllerType = typeof(CrudController<,>).MakeGenericType(entity.EntityType, entity.KeyType);
+            feature.Controllers.Add(controllerType.GetTypeInfo());
         }
     }
 }

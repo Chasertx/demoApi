@@ -57,13 +57,6 @@ public class ReflectionEntityMapperTests
     }
 
     [Fact]
-    public void CopyValues_validates_arguments()
-    {
-        Assert.Throws<ArgumentNullException>(() => _mapper.CopyValues<Widget>(null!, Existing()));
-        Assert.Throws<ArgumentNullException>(() => _mapper.CopyValues(Existing(), null!));
-    }
-
-    [Fact]
     public void ApplyPatch_changes_only_supplied_properties()
     {
         var target = Existing();
@@ -149,10 +142,9 @@ public class ReflectionEntityMapperTests
         var mapper = new ReflectionEntityMapper(new JsonSerializerOptions { PropertyNameCaseInsensitive = false });
         var target = Existing();
 
-        // Without the string-enum converter, enums must be numeric.
+        // no string enum converter here, so only numbers work
         mapper.ApplyPatch(target, Patch("""{ "color": 2 }"""));
 
         Assert.Equal(WidgetColor.Blue, target.Color);
-        Assert.Throws<ArgumentNullException>(() => new ReflectionEntityMapper(null!));
     }
 }

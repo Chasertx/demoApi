@@ -4,36 +4,21 @@ using ModApi.Application.Entities;
 
 namespace ModApi.Infrastructure.Persistence;
 
-/// <summary>
-/// The single EF Core context. It has no hard-coded <c>DbSet</c> properties: the model is built from the
-/// <see cref="IEntityRegistry"/>, so adding an entity class is enough to persist it.
-/// </summary>
-public class AppDbContext : DbContext
+// No DbSet properties on purpose: the model is built from whatever is in the entity registry.
+public class AppDbContext(DbContextOptions<AppDbContext> options, IEntityRegistry entityRegistry) : DbContext(options)
 {
-    public AppDbContext(DbContextOptions<AppDbContext> options, IEntityRegistry entityRegistry)
-        : base(options)
-    {
-        EntityRegistry = entityRegistry ?? throw new ArgumentNullException(nameof(entityRegistry));
-    }
+    public IEntityRegistry EntityRegistry { get; } = entityRegistry;
 
-    /// <summary>The registry describing which entities are part of the model.</summary>
-    public IEntityRegistry EntityRegistry { get; }
-
-    /// <inheritdoc />
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
-        // The model depends on the registry, so the cache key must too.
         optionsBuilder.ReplaceService<IModelCacheKeyFactory, EntityRegistryModelCacheKeyFactory>();
     }
 
-    /// <inheritdoc />
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
     {
-        // A sensible default for money-like values on every provider; override per property with HasPrecision.
         configurationBuilder.Properties<decimal>().HavePrecision(18, 4);
     }
 
-    /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -44,16 +29,16 @@ public class AppDbContext : DbContext
             modelBuilder.Entity(entityType);
         }
 
-        // Apply IEntityTypeConfiguration<T> classes from entity assemblies and this assembly – but only for registered entities.
-        foreach (var assembly in EntityRegistry.Assemblies.Append(typeof(AppDbContext).Assembly).Distinct())
+        var assemblies = EntityRegistry.Assemblies.Append(typeof(AppDbContext).Assembly).Distinct();
+        foreach (var assembly in assemblies)
         {
-            modelBuilder.ApplyConfigurationsFromAssembly(assembly, type => ConfiguresRegisteredEntity(type, registered));
+            modelBuilder.ApplyConfigurationsFromAssembly(assembly, type => ConfiguresAnyOf(type, registered));
         }
     }
 
-    private static bool ConfiguresRegisteredEntity(Type configurationType, HashSet<Type> registered) =>
+    private static bool ConfiguresAnyOf(Type configurationType, HashSet<Type> entityTypes) =>
         configurationType.GetInterfaces().Any(i =>
             i.IsGenericType &&
             i.GetGenericTypeDefinition() == typeof(IEntityTypeConfiguration<>) &&
-            registered.Contains(i.GetGenericArguments()[0]));
+            entityTypes.Contains(i.GetGenericArguments()[0]));
 }

@@ -1,6 +1,6 @@
-﻿# ModApi
+# ModApi
 
-[![CI/CD](https://github.com/OWNER/REPO/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/OWNER/REPO/actions/workflows/ci-cd.yml)
+[![CI/CD](https://github.com/Chasertx/demoApi/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/Chasertx/demoApi/actions/workflows/ci-cd.yml)
 
 A generic **.NET 8 REST API** that gives every entity full **CRUD** endpoints over **SQL Server** or **PostgreSQL** with no per-entity code. The provider is chosen from configuration. Data access uses **Entity Framework Core** and **LINQ** throughout. The API is designed to sit behind any number of independent, **modular frontends**.
 

@@ -1,0 +1,237 @@
+name: CI/CD
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*.*.*"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-cd-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+  CONFIGURATION: Release
+  IMAGE_NAME: ghcr.io/${{ github.repository }}
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # 1. Build, lint, unit tests + integration tests on SQLite, coverage report
+  # ---------------------------------------------------------------------------
+  build-and-test:
+    name: Build & test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/Directory.Packages.props', '**/*.csproj') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      - name: Restore
+        run: dotnet restore ModApi.sln
+
+      - name: Verify formatting
+        run: dotnet format ModApi.sln --verify-no-changes --no-restore
+
+      - name: Build (warnings are errors)
+        run: dotnet build ModApi.sln -c $CONFIGURATION --no-restore
+
+      - name: Test
+        run: >
+          dotnet test ModApi.sln -c $CONFIGURATION --no-build
+          --logger "trx;LogFilePrefix=results"
+          --results-directory TestResults
+          --collect "XPlat Code Coverage"
+
+      - name: Coverage summary
+        if: always()
+        continue-on-error: true
+        run: |
+          dotnet tool install --global dotnet-reportgenerator-globaltool --version 5.4.1
+          reportgenerator -reports:"TestResults/**/coverage.cobertura.xml" -targetdir:coverage -reporttypes:"MarkdownSummaryGithub;Cobertura" -assemblyfilters:"+ModApi.*;-ModApi.*Tests"
+          cat coverage/SummaryGithub.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: |
+            TestResults/**/*.trx
+            coverage/
+          retention-days: 14
+
+  # ---------------------------------------------------------------------------
+  # 2. Same integration suite against real database engines
+  # ---------------------------------------------------------------------------
+  integration-sqlserver:
+    name: Integration (SQL Server)
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      sqlserver:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        env:
+          ACCEPT_EULA: "Y"
+          MSSQL_SA_PASSWORD: ModApiCi_Passw0rd2024
+        ports:
+          - 1433:1433
+        options: >-
+          --health-cmd "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P ModApiCi_Passw0rd2024 -C -Q 'SELECT 1' -b -o /dev/null"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 15
+          --health-start-period 20s
+    env:
+      MODAPI_TEST_PROVIDER: SqlServer
+      MODAPI_TEST_CONNECTION: Server=localhost,1433;Database=modapi;User Id=sa;Password=ModApiCi_Passw0rd2024;TrustServerCertificate=True;Encrypt=False
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - name: Integration tests
+        run: dotnet test tests/ModApi.IntegrationTests -c $CONFIGURATION --logger "console;verbosity=normal"
+
+  integration-postgres:
+    name: Integration (PostgreSQL)
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      MODAPI_TEST_PROVIDER: PostgreSql
+      MODAPI_TEST_CONNECTION: Host=localhost;Port=5432;Database=modapi;Username=postgres;Password=postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - name: Integration tests
+        run: dotnet test tests/ModApi.IntegrationTests -c $CONFIGURATION --logger "console;verbosity=normal"
+
+  # ---------------------------------------------------------------------------
+  # 3. Container image: always built; pushed to GHCR only for main and tags
+  # ---------------------------------------------------------------------------
+  container:
+    name: Container image
+    needs: [build-and-test, integration-sqlserver, integration-postgres]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image: ${{ steps.image.outputs.ref }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Image metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE_NAME }}
+          tags: |
+            type=sha,format=long
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: src/ModApi.Api/Dockerfile
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Select deployable image reference
+        id: image
+        run: echo "ref=$(echo '${{ steps.meta.outputs.tags }}' | grep ':sha-' | head -n 1)" >> "$GITHUB_OUTPUT"
+
+  # ---------------------------------------------------------------------------
+  # 4. Deploy (runs only once the Azure variables below are configured)
+  #    Repository variables: AZURE_CONTAINERAPP_NAME, AZURE_RESOURCE_GROUP, APP_BASE_URL
+  #    Repository secrets:   AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID (OIDC federated credential)
+  # ---------------------------------------------------------------------------
+  deploy:
+    name: Deploy to Azure Container Apps
+    needs: container
+    if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')) && vars.AZURE_CONTAINERAPP_NAME != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: production
+      url: ${{ vars.APP_BASE_URL }}
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Azure login (OIDC, no stored passwords)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Deploy image
+        uses: azure/container-apps-deploy-action@v2
+        with:
+          containerAppName: ${{ vars.AZURE_CONTAINERAPP_NAME }}
+          resourceGroup: ${{ vars.AZURE_RESOURCE_GROUP }}
+          imageToDeploy: ${{ needs.container.outputs.image }}
+
+      - name: Smoke test
+        if: vars.APP_BASE_URL != ''
+        run: |
+          for attempt in $(seq 1 20); do
+            if curl --fail --silent --show-error "${{ vars.APP_BASE_URL }}/health/ready"; then
+              echo; echo "Deployment healthy"; exit 0
+            fi
+            echo "Waiting for readiness (attempt $attempt)..."; sleep 15
+          done
+          echo "Deployment did not become ready" >&2; exit 1
